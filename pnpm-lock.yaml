@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ai-sdk/deepseek':
+        specifier: ^1.0.30
+        version: 1.0.30(zod@4.0.14)
       '@ai-sdk/openai':
         specifier: ^2.0.2
         version: 2.0.2(zod@4.0.14)
@@ -95,6 +98,12 @@ importers:
         version: 5.9.2
 
 packages:
+
+  '@ai-sdk/deepseek@1.0.30':
+    resolution: {integrity: sha512-pafNclW9L8Z3WimaRwlpHrGbdeaDE/UklT3rMi2aoRRyrA+s7zGcFuu1zbO2ViLNlKfaS91XZa9MFAPXbIftUA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
 
   '@ai-sdk/gateway@1.0.0':
     resolution: {integrity: sha512-VEm87DyRx1yIPywbTy8ntoyh4jEDv1rJ88m+2I7zOm08jJI5BhFtAWh0OF6YzZu1Vu4NxhOWO4ssGdsqydDQ3A==}
@@ -2493,6 +2502,13 @@ packages:
     resolution: {integrity: sha512-nGFJTnJN6cM2v9kXL+SOBq3AtjQby3Mv5ySGFof5UGRHrRioSJ5iG680cYNjE/yWk671nROcpPj4hAS8nyLhSw==}
 
 snapshots:
+
+  '@ai-sdk/deepseek@1.0.30(zod@4.0.14)':
+    dependencies:
+      '@ai-sdk/openai-compatible': 1.0.28(zod@4.0.14)
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.18(zod@4.0.14)
+      zod: 4.0.14
 
   '@ai-sdk/gateway@1.0.0(zod@4.0.14)':
     dependencies:

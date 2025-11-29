@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personalize 2.0 - 多模态营销内容生成平台</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        success: '#22c55e',
+                        warning: '#f59e0b',
+                        error: '#ef4444',
+                        info: '#0ea5e9',
+                        primary: '#0EA5E9', // Sky Blue
+                        secondary: '#F97316', // Orange
+                        accent: '#881337',
+                        background: '#F0F9FF', // Very light blue
+                        surface: '#FFFFFF',
+                        text: '#0F172A', // Slate 900
+                        muted: '#64748B', // Slate 500
+                        border: '#E2E8F0',
+                    },
+                    borderRadius: {
+                        DEFAULT: '1.5rem', // 24px
+                        'sm': '0.75rem',
+                        'md': '1rem',
+                        'lg': '1.25rem',
+                        'xl': '1.5rem',
+                        '2xl': '2rem',
+                    },
+                    fontFamily: {
+                        heading: ["Playfair Display", "serif"],
+                        body: ["Outfit", "sans-serif"],
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(14, 165, 233, 0.1)',
+                        'card': '0 0 0 1px rgba(226, 232, 240, 1), 0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #F0F9FF;
+            color: #0F172A;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Playfair Display', serif;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        /* Hide scrollbar for clean UI */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-primary selection:text-white">
+
+    <div id="landing-page" class="flex flex-col min-h-screen transition-opacity duration-500">
+        
+        <nav class="fixed w-full z-50 glass-panel border-b border-white/50">
+            <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white text-xl">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <span class="text-2xl font-bold tracking-tight text-text">Personalize 2.0</span>
+                </div>
+                <div class="hidden md:flex items-center gap-8 text-muted font-medium">
+                    <a href="#features" class="hover:text-primary transition">功能特性</a>
+                    <a href="#scenarios" class="hover:text-primary transition">使用场景</a>
+                    <a href="#pricing" class="hover:text-primary transition">价格</a>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="goToApp()" class="px-6 py-2.5 rounded-xl border border-border bg-white text-text font-medium hover:bg-slate-50 transition">登录</button>
+                    <button onclick="goToApp()" class="px-6 py-2.5 rounded-xl bg-primary text-white font-medium shadow-soft hover:bg-sky-600 transition">免费试用</button>
+                </div>
+            </div>
+        </nav>
+
+        <section class="pt-40 pb-20 px-6">
+            <div class="max-w-4xl mx-auto text-center space-y-8">
+                <div class="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-primary/20 text-primary text-sm font-medium animate-bounce">
+                    <span class="w-2 h-2 rounded-full bg-primary"></span>
+                    全平台 AI 营销内容生成
+                </div>
+                <h1 class="text-5xl md:text-7xl font-bold leading-tight text-text">
+                    从产品文档到 <span class="text-primary italic">爆款</span> 社媒内容，<br>
+                    只需 <span class="relative inline-block">一键生成<svg class="absolute -bottom-2 w-full h-3 text-secondary" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M0 5 Q 50 10 100 5" stroke="currentColor" stroke-width="4" fill="none"/></svg></span>
+                </h1>
+                <p class="text-xl text-muted max-w-2xl mx-auto leading-relaxed font-light">
+                    上传 PDF 或产品图，选择“KOS人设”，自动生成小红书、Instagram、LinkedIn 等多平台原生内容。让品牌拥有统一而多元的人格。
+                </p>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                    <button onclick="goToApp()" class="w-full sm:w-auto px-8 py-4 bg-primary text-white text-lg rounded-xl font-medium shadow-lg shadow-primary/30 hover:scale-105 transition transform">
+                        开始生成内容 <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                    <button class="w-full sm:w-auto px-8 py-4 bg-white text-text border border-border text-lg rounded-xl font-medium hover:bg-slate-50 transition">
+                        观看演示视频
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-20 max-w-6xl mx-auto relative group">
+                <div class="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                <div class="relative bg-white rounded-[1.5rem] border border-border shadow-2xl overflow-hidden aspect-[16/9] flex items-center justify-center">
+                    <div class="text-center space-y-4">
+                        <i class="fa-solid fa-layer-group text-6xl text-slate-200"></i>
+                        <p class="text-muted text-lg">Dashboard Preview Interface</p>
+                    </div>
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/5 backdrop-blur-[2px]">
+                        <button onclick="goToApp()" class="px-8 py-3 bg-white rounded-xl shadow-xl text-primary font-bold hover:scale-110 transition">
+                            点击进入后台交互原型
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="py-20 bg-white rounded-t-[3rem]">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold mb-4">核心流程</h2>
+                    <p class="text-muted">三步实现内容自动化</p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="p-8 rounded-2xl bg-background border border-primary/10 hover:border-primary/50 transition duration-300">
+                        <div class="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-primary text-2xl shadow-sm mb-6">
+                            <i class="fa-regular fa-file-pdf"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3">1. 素材解析</h3>
+                        <p class="text-muted">支持 PDF、PPT、白底图。自动提取卖点、规格参数，OCR 识别包装文字。</p>
+                    </div>
+                    <div class="p-8 rounded-2xl bg-background border border-primary/10 hover:border-primary/50 transition duration-300">
+                        <div class="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-secondary text-2xl shadow-sm mb-6">
+                            <i class="fa-solid fa-users-viewfinder"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3">2. 人设匹配</h3>
+                        <p class="text-muted">选择“美妆KOL”、“科技测评师”或自定义人设。基于人格维度调整语气与关注点。</p>
+                    </div>
+                    <div class="p-8 rounded-2xl bg-background border border-primary/10 hover:border-primary/50 transition duration-300">
+                        <div class="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-success text-2xl shadow-sm mb-6">
+                            <i class="fa-solid fa-share-nodes"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3">3. 全平台生成</h3>
+                        <p class="text-muted">一键输出小红书图文、IG 贴文、LinkedIn 专业稿。包含自动配图与排版。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="pricing" class="py-20 px-6">
+            <div class="max-w-7xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold mb-4">简单透明的定价</h2>
+                </div>
+                <div class="grid md:grid-cols-3 gap-8 items-center">
+                    <div class="p-8 rounded-2xl bg-white border border-border h-fit">
+                        <h3 class="text-2xl font-bold text-text">Free</h3>
+                        <div class="my-4"><span class="text-4xl font-bold">¥0</span> /月</div>
+                        <ul class="space-y-3 text-muted mb-8 text-sm">
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-success"></i> 5次生成/月</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-success"></i> 2个基础人设模板</li>
+                        </ul>
+                        <button onclick="goToApp()" class="w-full py-3 rounded-xl border border-border font-medium hover:bg-slate-50">免费开始</button>
+                    </div>
+                    <div class="p-8 rounded-2xl bg-primary text-white shadow-xl shadow-primary/20 relative scale-105 z-10">
+                        <div class="absolute top-0 right-0 bg-secondary text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl">POPULAR</div>
+                        <h3 class="text-2xl font-bold">Pro</h3>
+                        <div class="my-4"><span class="text-4xl font-bold">¥79</span> /月</div>
+                        <ul class="space-y-3 text-blue-100 mb-8 text-sm">
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check"></i> 100次生成/月</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check"></i> 5个自定义人设</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check"></i> 全部人设模板库</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check"></i> 图片AI增强</li>
+                        </ul>
+                        <button onclick="goToApp()" class="w-full py-3 rounded-xl bg-white text-primary font-bold hover:bg-slate-50">立即订阅</button>
+                    </div>
+                    <div class="p-8 rounded-2xl bg-white border border-border h-fit">
+                        <h3 class="text-2xl font-bold text-text">Business</h3>
+                        <div class="my-4"><span class="text-4xl font-bold">¥199</span> /月</div>
+                        <ul class="space-y-3 text-muted mb-8 text-sm">
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-success"></i> 无限次生成</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-success"></i> 无限自定义人设</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-success"></i> 团队协作功能</li>
+                        </ul>
+                        <button class="w-full py-3 rounded-xl border border-border font-medium hover:bg-slate-50">联系销售</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div id="app-page" class="hidden min-h-screen bg-[#F8FAFC] flex transition-opacity duration-500">
+        
+        <aside class="w-20 lg:w-64 bg-white border-r border-border fixed h-full z-20 flex flex-col justify-between transition-all">
+            <div>
+                <div class="h-20 flex items-center justify-center lg:justify-start lg:px-6 border-b border-border">
+                    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white mr-0 lg:mr-3">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <span class="font-heading font-bold text-xl text-text hidden lg:block">Personalize</span>
+                </div>
+                
+                <nav class="p-4 space-y-2">
+                    <a href="#" class="flex items-center gap-3 px-4 py-3 bg-background text-primary rounded-xl font-medium">
+                        <i class="fa-solid fa-house w-5"></i>
+                        <span class="hidden lg:block">工作台</span>
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-4 py-3 text-muted hover:bg-slate-50 hover:text-text rounded-xl font-medium transition">
+                        <i class="fa-solid fa-masks-theater w-5"></i>
+                        <span class="hidden lg:block">KOS 人设库</span>
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-4 py-3 text-muted hover:bg-slate-50 hover:text-text rounded-xl font-medium transition">
+                        <i class="fa-regular fa-pen-to-square w-5"></i>
+                        <span class="hidden lg:block">内容生成</span>
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-4 py-3 text-muted hover:bg-slate-50 hover:text-text rounded-xl font-medium transition">
+                        <i class="fa-solid fa-box-archive w-5"></i>
+                        <span class="hidden lg:block">素材库</span>
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="p-4">
+                <button onclick="backToHome()" class="flex items-center gap-3 px-4 py-3 text-muted hover:text-error rounded-xl font-medium transition w-full">
+                    <i class="fa-solid fa-arrow-right-from-bracket w-5"></i>
+                    <span class="hidden lg:block">退出</span>
+                </button>
+            </div>
+        </aside>
+
+        <main class="ml-20 lg:ml-64 flex-1 p-6 lg:p-10">
+            
+            <header class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-text">欢迎回来, TechMaster 👋</h2>
+                    <p class="text-muted text-sm mt-1">今日热点：消费电子展、环保新规发布</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button class="w-12 h-12 bg-white rounded-full border border-border text-muted hover:text-primary transition flex items-center justify-center relative">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="absolute top-3 right-3 w-2 h-2 bg-error rounded-full"></span>
+                    </button>
+                    <div class="flex items-center gap-3 pl-4 border-l border-border">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="w-10 h-10 rounded-full border border-border">
+                        <div class="hidden md:block">
+                            <p class="text-sm font-bold text-text">Alex Chen</p>
+                            <p class="text-xs text-muted">Pro Plan</p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+                
+                <div class="xl:col-span-8 space-y-8">
+                    
+                    <section>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-text">常用 KOS 人设</h3>
+                            <button class="text-primary text-sm font-medium hover:underline">+ 新建人设</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="group bg-white p-5 rounded-xl border border-border hover:border-primary/50 hover:shadow-soft transition cursor-pointer relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition">
+                                    <i class="fa-solid fa-ellipsis text-muted"></i>
+                                </div>
+                                <div class="flex items-center gap-3 mb-3">
+                                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Bob" class="w-12 h-12 rounded-full bg-slate-100">
+                                    <div>
+                                        <h4 class="font-bold text-text">科技测评师 Bob</h4>
+                                        <span class="text-xs text-muted bg-slate-100 px-2 py-0.5 rounded-full">#硬核参数</span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-end mt-4">
+                                    <span class="text-xs text-muted">使用 24 次</span>
+                                    <button class="w-8 h-8 rounded-full bg-background text-primary flex items-center justify-center hover:bg-primary hover:text-white transition">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="group bg-white p-5 rounded-xl border border-border hover:border-primary/50 hover:shadow-soft transition cursor-pointer relative overflow-hidden">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sara" class="w-12 h-12 rounded-full bg-rose-50">
+                                    <div>
+                                        <h4 class="font-bold text-text">精致宝妈 Sara</h4>
+                                        <span class="text-xs text-muted bg-slate-100 px-2 py-0.5 rounded-full">#安全性 #好物</span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-end mt-4">
+                                    <span class="text-xs text-muted">使用 56 次</span>
+                                    <button class="w-8 h-8 rounded-full bg-background text-primary flex items-center justify-center hover:bg-primary hover:text-white transition">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="group bg-white p-5 rounded-xl border border-border hover:border-primary/50 hover:shadow-soft transition cursor-pointer relative overflow-hidden">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Leo" class="w-12 h-12 rounded-full bg-orange-50">
+                                    <div>
+                                        <h4 class="font-bold text-text">极简设计师 Leo</h4>
+                                        <span class="text-xs text-muted bg-slate-100 px-2 py-0.5 rounded-full">#美学 #理念</span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-end mt-4">
+                                    <span class="text-xs text-muted">使用 12 次</span>
+                                    <button class="w-8 h-8 rounded-full bg-background text-primary flex items-center justify-center hover:bg-primary hover:text-white transition">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="flex-1">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-text">近期发布任务</h3>
+                            <div class="flex gap-2">
+                                <span class="text-xs bg-white border border-border px-3 py-1.5 rounded-lg text-muted cursor-pointer">全部状态</span>
+                                <span class="text-xs bg-white border border-border px-3 py-1.5 rounded-lg text-muted cursor-pointer">平台筛选</span>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl border border-border overflow-hidden">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-slate-50 text-xs uppercase text-muted font-medium">
+                                    <tr>
+                                        <th class="px-6 py-4">预览 / 标题</th>
+                                        <th class="px-6 py-4">关联人设</th>
+                                        <th class="px-6 py-4">平台</th>
+                                        <th class="px-6 py-4">状态</th>
+                                        <th class="px-6 py-4 text-right">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-sm divide-y divide-border">
+                                    <tr class="hover:bg-slate-50 transition group">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 rounded-lg bg-slate-200 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=100&q=80')"></div>
+                                                <span class="font-medium text-text">智能手表 Pro 3 测评</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-muted">Tech Bob</td>
+                                        <td class="px-6 py-4">
+                                            <i class="fa-brands fa-instagram text-pink-500 text-lg"></i>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                已发布
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button class="text-muted hover:text-primary"><i class="fa-solid fa-chart-simple"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 transition group">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 rounded-lg bg-slate-200 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=100&q=80')"></div>
+                                                <span class="font-medium text-text">降噪耳机开箱视频脚本</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-muted">学生党 Alice</td>
+                                        <td class="px-6 py-4">
+                                            <span class="text-error font-bold">小红书</span>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                待发布 (18:00)
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button class="text-muted hover:text-primary"><i class="fa-regular fa-pen-to-square"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 transition group">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 rounded-lg bg-slate-200 bg-cover bg-center flex items-center justify-center text-muted text-xs">PDF</div>
+                                                <span class="font-medium text-text">春季新品发布会通稿</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-muted">职场达人 Mike</td>
+                                        <td class="px-6 py-4">
+                                            <i class="fa-brands fa-linkedin text-blue-700 text-lg"></i>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                                                草稿
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button class="text-muted hover:text-primary"><i class="fa-solid fa-play"></i></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                </div>
+
+                <div class="xl:col-span-4 space-y-6">
+                    <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-5 text-white shadow-lg">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="font-heading font-bold text-lg">Photon 爬虫引擎</h3>
+                                <p class="text-slate-400 text-xs">上次更新: 5分钟前</p>
+                            </div>
+                            <div class="animate-pulse w-3 h-3 bg-success rounded-full shadow-[0_0_10px_#22c55e]"></div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-400">热点源</span>
+                                <span>12 个已订阅</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-400">今日关键词</span>
+                                <span>环保, AI, 极简</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-border rounded-xl p-5 h-fit">
+                        <h3 class="font-bold text-text mb-4">智能发布推荐 (每日)</h3>
+                        
+                        <div class="space-y-4">
+                            <div class="p-4 rounded-lg bg-background border border-primary/20 hover:border-primary transition group relative">
+                                <div class="absolute -top-2 -right-2 bg-secondary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">HOT</div>
+                                <h4 class="text-sm font-bold text-text leading-tight mb-2">结合"全球减塑日"热点</h4>
+                                <p class="text-xs text-muted mb-3 line-clamp-2">检测到您的《环保随行杯》与今日热搜#减塑生活 高度匹配。</p>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-[10px] bg-white border border-border px-1.5 py-0.5 rounded text-muted">Sara人设</span>
+                                    <span class="text-[10px] bg-white border border-border px-1.5 py-0.5 rounded text-muted">小红书</span>
+                                </div>
+                                <button class="w-full py-2 bg-white border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary hover:text-white transition flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> 一键生成文案
+                                </button>
+                            </div>
+
+                            <div class="p-4 rounded-lg bg-slate-50 border border-border hover:border-muted transition">
+                                <h4 class="text-sm font-bold text-text leading-tight mb-2">周五晚间流量高峰预警</h4>
+                                <p class="text-xs text-muted mb-3">建议在 19:30 发布《办公桌好物》系列，预计流量提升 40%。</p>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-[10px] bg-white border border-border px-1.5 py-0.5 rounded text-muted">Leo人设</span>
+                                    <span class="text-[10px] bg-white border border-border px-1.5 py-0.5 rounded text-muted">Instagram</span>
+                                </div>
+                                <button class="w-full py-2 bg-white border border-border text-text text-xs font-bold rounded-lg hover:bg-slate-200 transition">
+                                    查看草稿
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <button class="w-full mt-4 py-2 text-xs text-muted hover:text-primary border-t border-border border-dashed">
+                            查看更多推荐 <i class="fa-solid fa-chevron-down ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function goToApp() {
+            document.getElementById('landing-page').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('landing-page').classList.add('hidden');
+                document.getElementById('app-page').classList.remove('hidden');
+                // Trigger reflow
+                void document.getElementById('app-page').offsetWidth; 
+                document.getElementById('app-page').style.opacity = '1';
+            }, 500);
+        }
+
+        function backToHome() {
+            document.getElementById('app-page').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('app-page').classList.add('hidden');
+                document.getElementById('landing-page').classList.remove('hidden');
+                void document.getElementById('landing-page').offsetWidth;
+                document.getElementById('landing-page').style.opacity = '1';
+            }, 500);
+        }
+    </script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { deepseek } from "@ai-sdk/deepseek";
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL;
@@ -8,6 +9,7 @@ export const litellm = createOpenAI({
     baseURL: OPENAI_BASE_URL,
     apiKey: OPENAI_API_KEY,
 });
+
 
 export const qwen = createOpenAICompatible({
     name: 'thinking',
