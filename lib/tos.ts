@@ -1,5 +1,4 @@
 import { TosClient } from '@volcengine/tos-sdk';
-import 'dotenv/config'
 
 export const client = new TosClient({
   accessKeyId: process.env.VOLCENGINE_ACCESS_KEY_ID ?? '',

@@ -27,16 +27,29 @@ export function MaterialForm() {
       <CardContent>
         <form action={formAction} className="space-y-3 text-sm">
           <div>
-            <Label htmlFor="material-name" className="sr-only">素材名称</Label>
+            <Label htmlFor="material-file">选择文件</Label>
+            <Input
+              id="material-file"
+              name="file"
+              type="file"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+              className="mt-1"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="material-name">素材名称（可选）</Label>
             <Input
               id="material-name"
               name="name"
-              placeholder="素材名称，如产品卖点白皮书"
+              placeholder="留空则使用文件名"
+              className="mt-1"
             />
           </div>
-          <div className="flex gap-3">
-            <Select name="type" defaultValue="document">
-              <SelectTrigger className="w-1/2">
+          <div>
+            <Label htmlFor="material-type">素材类型</Label>
+            <Select name="type" defaultValue="document" required>
+              <SelectTrigger className="mt-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -44,11 +57,10 @@ export function MaterialForm() {
                 <SelectItem value="image">图片</SelectItem>
               </SelectContent>
             </Select>
-            <Input name="size" placeholder="大小，如 1.2MB" />
           </div>
           <Button type="submit" className="w-full">
             <Upload className="mr-2 h-4 w-4" />
-            保存素材信息
+            上传素材
           </Button>
           {state.message && (
             <p className={cn("text-xs", state.ok ? "text-emerald-600" : "text-rose-500")}>

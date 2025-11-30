@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { randomUUID } from "crypto";
 
 import { prisma } from "@/lib/db";
+import { client, bucketName } from "@/lib/tos";
 
 export type PersonaSummary = {
   id?: string;
@@ -157,9 +159,8 @@ const personaSchema = z.object({
 });
 
 const materialSchema = z.object({
-  name: z.string().min(2),
+  name: z.string().min(2).optional(),
   type: z.enum(["document", "image"]),
-  sizeLabel: z.string().min(1),
   userId: z.string().uuid().optional(),
 });
 
@@ -343,15 +344,27 @@ export async function createPersonaAction(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const userIdValue = formData.get("userId");
+  let userId: string | undefined;
+  
+  if (userIdValue && typeof userIdValue === "string") {
+    const trimmed = userIdValue.trim();
+    // 验证是否为有效的 UUID 格式
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (trimmed && uuidRegex.test(trimmed)) {
+      userId = trimmed;
+    }
+  }
+  
   const parsed = personaSchema.safeParse({
     name: formData.get("name"),
     domain: formData.get("domain"),
     style: formData.get("style"),
-    userId: formData.get("userId") || DEMO_USER_ID,
+    userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
   });
 
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.errors[0]?.message || "输入不合法" };
+    return { ok: false, message: parsed.error.issues[0]?.message || "输入不合法" };
   }
 
   if (!dbAvailable()) {
@@ -362,7 +375,7 @@ export async function createPersonaAction(
     const user = await ensureDemoUser();
     await prisma.kosPersona.create({
       data: {
-        userId: parsed.data.userId || user.id,
+        userId: parsed.data.userId ?? user.id,
         name: parsed.data.name,
         domainTags: parsed.data.domain.split(",").map((tag) => tag.trim()),
         expressionStyle: parsed.data.style,
@@ -380,15 +393,37 @@ export async function createMaterialAction(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const file = formData.get("file") as File | null;
+  const type = formData.get("type") as string | null;
+
+  if (!file) {
+    return { ok: false, message: "请选择要上传的文件" };
+  }
+
+  if (!type || (type !== "document" && type !== "image")) {
+    return { ok: false, message: "请选择素材类型（文档或图片）" };
+  }
+
+  const userIdValue = formData.get("userId");
+  let userId: string | undefined;
+  
+  if (userIdValue && typeof userIdValue === "string") {
+    const trimmed = userIdValue.trim();
+    // 验证是否为有效的 UUID 格式
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (trimmed && uuidRegex.test(trimmed)) {
+      userId = trimmed;
+    }
+  }
+  
   const parsed = materialSchema.safeParse({
-    name: formData.get("name"),
-    type: formData.get("type"),
-    sizeLabel: formData.get("size"),
-    userId: formData.get("userId") || DEMO_USER_ID,
+    name: formData.get("name") || file.name,
+    type: type as "document" | "image",
+    userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
   });
 
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.errors[0]?.message || "素材信息不完整" };
+    return { ok: false, message: parsed.error.issues[0]?.message || "素材信息不完整" };
   }
 
   if (!dbAvailable()) {
@@ -397,22 +432,44 @@ export async function createMaterialAction(
 
   try {
     const user = await ensureDemoUser();
+    
+    // 上传文件到 TOS
+    const fileExtension = file.name.split(".").pop() || "";
+    const fileName = `${randomUUID()}.${fileExtension}`;
+    const objectKey = `materials/${user.id}/${fileName}`;
+    
+    const fileBuffer = await file.arrayBuffer();
+    const fileSize = fileBuffer.byteLength;
+
+    await client.putObject({
+      bucket: bucketName,
+      key: objectKey,
+      body: Buffer.from(fileBuffer),
+      contentType: file.type || (parsed.data.type === "document" ? "application/pdf" : "image/jpeg"),
+    });
+
+    // 构建 TOS URL（根据你的 TOS 配置调整）
+    const tosUrl = `https://${bucketName}.tos-cn-shanghai.volces.com/${objectKey}`;
+
+    // 保存到数据库
     await prisma.productMaterial.create({
       data: {
-        userId: parsed.data.userId || user.id,
-          materialType: parsed.data.type as MaterialKind,
-        filePath: `/uploads/${parsed.data.name}`,
-        fileName: parsed.data.name,
-        fileSize: 1024n * 1024n,
-        mimeType: parsed.data.type === "document" ? "application/pdf" : "image/jpeg",
+        userId: parsed.data.userId ?? user.id,
+        materialType: parsed.data.type as MaterialKind,
+        filePath: tosUrl,
+        fileName: parsed.data.name || file.name,
+        fileSize: BigInt(fileSize),
+        mimeType: file.type || (parsed.data.type === "document" ? "application/pdf" : "image/jpeg"),
         parsedContent: {},
       },
     });
+
     revalidatePath("/");
-    return { ok: true, message: "素材记录已保存" };
+    revalidatePath("/dashboard/materials");
+    return { ok: true, message: "素材已上传并保存" };
   } catch (error) {
     console.error("Create material failed", error);
-    return { ok: false, message: "保存素材失败，请稍后再试" };
+    return { ok: false, message: "上传素材失败，请稍后再试" };
   }
 }
 
@@ -420,16 +477,28 @@ export async function recordGenerationAction(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const userIdValue = formData.get("userId");
+  let userId: string | undefined;
+  
+  if (userIdValue && typeof userIdValue === "string") {
+    const trimmed = userIdValue.trim();
+    // 验证是否为有效的 UUID 格式
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (trimmed && uuidRegex.test(trimmed)) {
+      userId = trimmed;
+    }
+  }
+  
   const parsed = generationSchema.safeParse({
     title: formData.get("title"),
     persona: formData.get("persona"),
     platform: formData.get("platform"),
     content: formData.get("content"),
-    userId: formData.get("userId") || DEMO_USER_ID,
+    userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
   });
 
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.errors[0]?.message || "内容不完整" };
+    return { ok: false, message: parsed.error.issues[0]?.message || "内容不完整" };
   }
 
   if (!dbAvailable()) {
@@ -480,7 +549,7 @@ export async function recordGenerationAction(
         materialType: "document",
         filePath: "/uploads/demo.pdf",
         fileName: "Demo PDF",
-        fileSize: 2048n,
+        fileSize: BigInt(2048),
         mimeType: "application/pdf",
         parsedContent: { summary: "AI 生成内容" },
       },
