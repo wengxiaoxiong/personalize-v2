@@ -1,6 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { deepseek } from "@ai-sdk/deepseek";
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
