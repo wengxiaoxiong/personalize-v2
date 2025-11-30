@@ -3,14 +3,14 @@
 ## 0. 前置准备与架构设计阶段
 ### 0.1 数据库表设计
 - [x] 需求分析：明确各模块数据关系与存储需求
-- [ ] 核心表设计：
+- [x] 核心表设计：
   - 用户表（Users）：用户基本信息与订阅权限
   - 产品素材表（ProductMaterials）：上传的文档与图片
   - KOS人设表（KOSPersonas）：结构化人设信息
   - 内容生成记录表（ContentGenerations）：生成的内容包记录
   - 推荐发布计划表（Recommendations）：时事联动推荐内容
   - 风格包表（StylePacks）：预设的营销风格包
-- [ ] 建造 prisma + pgsql
+- [x] 建造 prisma + pgsql（已提供 schema，数据库连接通过环境变量配置）
 
 ### 0.2 技术架构搭建
 - [ ] 全栈项目初始化（Next.js 15 + Shadcn + Tailwind + ServerAction规范）

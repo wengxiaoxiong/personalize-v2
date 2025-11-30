@@ -1,0 +1,148 @@
+// Prisma schema for Personalize 2.0 data model
+// Database connection is configured via the DATABASE_URL environment variable.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionPlan {
+  free
+  pro
+  business
+}
+
+enum MaterialType {
+  document
+  image
+}
+
+enum GenerationStatus {
+  pending
+  success
+  failed
+}
+
+model User {
+  id                  String    @id @default(uuid()) @db.Uuid
+  email               String    @unique
+  passwordHash        String    @map("password_hash")
+  username            String    @unique
+  subscriptionPlan    SubscriptionPlan @default(free) @map("subscription_plan")
+  subscriptionStart   DateTime? @map("subscription_start")
+  subscriptionEnd     DateTime? @map("subscription_end")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  productMaterials    ProductMaterial[]
+  kosPersonas         KosPersona[]
+  contentGenerations  ContentGeneration[]
+  recommendations     Recommendation[]
+
+  @@map("users")
+}
+
+model ProductMaterial {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id")
+  materialType  MaterialType @map("material_type")
+  filePath      String   @map("file_path")
+  fileName      String   @map("file_name")
+  fileSize      BigInt   @map("file_size")
+  mimeType      String   @map("mime_type")
+  parsedContent Json?    @map("parsed_content")
+  isParsed      Boolean  @default(false) @map("is_parsed")
+  parsedAt      DateTime? @map("parsed_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user                 User              @relation(fields: [userId], references: [id])
+  contentGenerations   ContentGeneration[]
+  recommendations      Recommendation[]
+
+  @@map("product_materials")
+}
+
+model KosPersona {
+  id                        String   @id @default(uuid()) @db.Uuid
+  userId                    String   @map("user_id")
+  name                      String
+  avatarUrl                 String?  @map("avatar_url")
+  domainTags                Json     @default("[]") @map("domain_tags")
+  professionalBackground    Json?    @map("professional_background")
+  expressionStyle           Json     @map("expression_style")
+  audienceRelation          Json?    @map("audience_relation")
+  professionalPreferences   Json?    @map("professional_preferences")
+  isTemplate                Boolean  @default(false) @map("is_template")
+  templateCategory          String?  @map("template_category")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  user                User                @relation(fields: [userId], references: [id])
+  contentGenerations  ContentGeneration[]
+  recommendations     Recommendation[]
+
+  @@map("kos_personas")
+}
+
+model StylePack {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String
+  category         String
+  imageStyles      Json     @map("image_styles")
+  tone             String
+  layoutReference  String?  @map("layout_reference")
+  recommendedTags  Json     @default("[]") @map("recommended_tags")
+  isBuiltin        Boolean  @default(true) @map("is_builtin")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  contentGenerations ContentGeneration[]
+
+  @@map("style_packs")
+}
+
+model ContentGeneration {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @map("user_id")
+  productMaterialId  String   @map("product_material_id")
+  kosPersonaId       String   @map("kos_persona_id")
+  stylePackId        String   @map("style_pack_id")
+  platforms          Json
+  contentPack        Json     @map("content_pack")
+  status             GenerationStatus @default(pending)
+  createdAt          DateTime @default(now()) @map("created_at")
+  completedAt        DateTime? @map("completed_at")
+
+  user            User            @relation(fields: [userId], references: [id])
+  productMaterial ProductMaterial @relation(fields: [productMaterialId], references: [id])
+  kosPersona      KosPersona      @relation(fields: [kosPersonaId], references: [id])
+  stylePack       StylePack       @relation(fields: [stylePackId], references: [id])
+
+  @@map("content_generations")
+}
+
+model Recommendation {
+  id                       String   @id @default(uuid()) @db.Uuid
+  userId                   String   @map("user_id")
+  newsTitle                String   @map("news_title")
+  newsSource               String   @map("news_source")
+  newsUrl                  String   @map("news_url")
+  hotKeywords              Json     @default("[]") @map("hot_keywords")
+  recommendedProductId     String?  @map("recommended_product_id")
+  recommendedPersonaId     String?  @map("recommended_persona_id")
+  recommendedPlatforms     Json     @default("[]") @map("recommended_platforms")
+  bestPublishTime          DateTime @map("best_publish_time")
+  relevanceScore           Decimal  @map("relevance_score") @db.Decimal(3, 2)
+  contentPreview           Json?    @map("content_preview")
+  isUsed                   Boolean  @default(false) @map("is_used")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  user              User             @relation(fields: [userId], references: [id])
+  recommendedProduct ProductMaterial? @relation(fields: [recommendedProductId], references: [id])
+  recommendedPersona KosPersona?      @relation(fields: [recommendedPersonaId], references: [id])
+
+  @@map("recommendations")
+}

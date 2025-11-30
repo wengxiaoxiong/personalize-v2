@@ -66,13 +66,13 @@ export function verifyAuthToken(token: string | null): AuthTokenPayload | null {
       return null;
     }
     return payload;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
-export function getTokenFromHeaders() {
-  const headerList = headers();
+export async function getTokenFromHeaders() {
+  const headerList = await headers();
   const auth = headerList.get("authorization") || headerList.get("Authorization");
   if (!auth) return null;
   const parts = auth.split(" ");
