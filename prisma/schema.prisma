@@ -49,7 +49,7 @@ model User {
 
 model ProductMaterial {
   id            String   @id @default(uuid()) @db.Uuid
-  userId        String   @map("user_id")
+  userId        String   @map("user_id") @db.Uuid
   materialType  MaterialType @map("material_type")
   filePath      String   @map("file_path")
   fileName      String   @map("file_name")
@@ -69,7 +69,7 @@ model ProductMaterial {
 
 model KosPersona {
   id                        String   @id @default(uuid()) @db.Uuid
-  userId                    String   @map("user_id")
+  userId                    String   @map("user_id") @db.Uuid
   name                      String
   avatarUrl                 String?  @map("avatar_url")
   domainTags                Json     @default("[]") @map("domain_tags")
@@ -107,10 +107,10 @@ model StylePack {
 
 model ContentGeneration {
   id                 String   @id @default(uuid()) @db.Uuid
-  userId             String   @map("user_id")
-  productMaterialId  String   @map("product_material_id")
-  kosPersonaId       String   @map("kos_persona_id")
-  stylePackId        String   @map("style_pack_id")
+  userId             String   @map("user_id") @db.Uuid
+  productMaterialId  String   @map("product_material_id") @db.Uuid
+  kosPersonaId       String   @map("kos_persona_id") @db.Uuid
+  stylePackId        String   @map("style_pack_id") @db.Uuid
   platforms          Json
   contentPack        Json     @map("content_pack")
   status             GenerationStatus @default(pending)
@@ -127,13 +127,13 @@ model ContentGeneration {
 
 model Recommendation {
   id                       String   @id @default(uuid()) @db.Uuid
-  userId                   String   @map("user_id")
+  userId                   String   @map("user_id") @db.Uuid
   newsTitle                String   @map("news_title")
   newsSource               String   @map("news_source")
   newsUrl                  String   @map("news_url")
   hotKeywords              Json     @default("[]") @map("hot_keywords")
-  recommendedProductId     String?  @map("recommended_product_id")
-  recommendedPersonaId     String?  @map("recommended_persona_id")
+  recommendedProductId     String?  @map("recommended_product_id") @db.Uuid
+  recommendedPersonaId     String?  @map("recommended_persona_id") @db.Uuid
   recommendedPlatforms     Json     @default("[]") @map("recommended_platforms")
   bestPublishTime          DateTime @map("best_publish_time")
   relevanceScore           Decimal  @map("relevance_score") @db.Decimal(3, 2)

@@ -59,8 +59,9 @@ export type ActionState = {
   message: string;
 };
 
-export function getAuthUser() {
-  const authCookie = cookies().get("auth-user")?.value;
+export async function getAuthUser() {
+  const cookieStore = await cookies();
+  const authCookie = cookieStore.get("auth-user")?.value;
   return authCookie ?? null;
 }
 
@@ -210,7 +211,8 @@ export async function loginAction(
     return { ok: false, message: "请提供有效的邮箱和至少6位密码" };
   }
 
-  cookies().set("auth-user", parsed.data.email, {
+  const cookieStore = await cookies();
+  cookieStore.set("auth-user", parsed.data.email, {
     path: "/",
     httpOnly: true,
     maxAge: 60 * 60 * 24 * 7,
@@ -233,7 +235,8 @@ export async function registerAction(
     return { ok: false, message: "请填写有效邮箱、用户名和至少6位密码" };
   }
 
-  cookies().set("auth-user", parsed.data.email, {
+  const cookieStore = await cookies();
+  cookieStore.set("auth-user", parsed.data.email, {
     path: "/",
     httpOnly: true,
     maxAge: 60 * 60 * 24 * 7,

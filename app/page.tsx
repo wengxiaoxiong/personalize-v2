@@ -1,7 +1,5 @@
-import { HomeClient } from "@/components/home-client";
-import { getDashboardSnapshot } from "./actions";
+import { LandingPage } from "@/components/landing/landing-page";
 
-export default async function Page() {
-  const snapshot = await getDashboardSnapshot();
-  return <HomeClient snapshot={snapshot} mode="landing" />;
+export default function Page() {
+  return <LandingPage />;
 }
