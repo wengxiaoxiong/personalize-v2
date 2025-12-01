@@ -3,8 +3,15 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import type { DashboardSnapshot, PersonaSummary } from "@/app/actions";
 
+type SessionUser = {
+  id: string;
+  email: string;
+  username: string;
+};
+
 type DashboardContextType = {
   snapshot: DashboardSnapshot;
+  user: SessionUser;
   selectedPersona: string;
   setSelectedPersona: (persona: string) => void;
   selectedPlatform: { label: string; value: string; accent: string };
@@ -21,10 +28,12 @@ export function DashboardProvider({
   children,
   snapshot,
   initialPersona,
+  user,
 }: {
   children: ReactNode;
   snapshot: DashboardSnapshot;
   initialPersona?: string;
+  user: SessionUser;
 }) {
   const [selectedPersona, setSelectedPersona] = useState(
     initialPersona || snapshot.personas[0]?.name || "Tech Bob",
@@ -40,6 +49,7 @@ export function DashboardProvider({
   const value = useMemo(
     () => ({
       snapshot,
+      user,
       selectedPersona,
       setSelectedPersona,
       selectedPlatform,
@@ -49,7 +59,7 @@ export function DashboardProvider({
       tone,
       setTone,
     }),
-    [snapshot, selectedPersona, selectedPlatform, topic, tone],
+    [snapshot, user, selectedPersona, selectedPlatform, topic, tone],
   );
 
   return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;

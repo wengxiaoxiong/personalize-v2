@@ -53,21 +53,6 @@ export function AIGenerator() {
     },
     experimental_throttle: 50,
     onFinish: async (_prompt, text) => {
-      startSaving(() =>
-        generationFormAction(
-          new FormData(
-            Object.entries({
-              title: `${selectedPlatform.label} · ${topic}`,
-              persona: selectedPersona,
-              platform: selectedPlatform.value,
-              content: text.trim(),
-            }).reduce((fd, [key, value]) => {
-              fd.append(key, value);
-              return fd;
-            }, new FormData()),
-          ),
-        ),
-      );
     },
   });
 
@@ -89,7 +74,7 @@ export function AIGenerator() {
             {platforms.map((platform) => (
               <Button
                 key={platform.value}
-                onClick={() => setSelectedPlatform(platform)}
+                onClick={() => setSelectedPlatform({ label: platform.label, value: platform.value, accent: "text-primary" })}
                 variant={selectedPlatform.value === platform.value ? "default" : "outline"}
                 size="sm"
               >

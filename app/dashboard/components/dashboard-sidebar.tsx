@@ -29,7 +29,6 @@ const navItems = [
   { href: "/dashboard", label: "工作台", icon: Home },
   { href: "/dashboard/personas", label: "KOS 人设库", icon: MaskIcon },
   { href: "/dashboard/generate", label: "内容生成", icon: PenLine },
-  { href: "/dashboard/materials", label: "素材库", icon: Upload },
 ];
 
 export function DashboardSidebar() {

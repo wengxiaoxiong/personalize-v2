@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 
 import { prisma } from "@/lib/db";
 import { client, bucketName } from "@/lib/tos";
+import { hashPassword, verifyPassword } from "@/lib/auth";
 
 export type PersonaSummary = {
   id?: string;
@@ -17,6 +18,17 @@ export type PersonaSummary = {
   lastUsed: string;
   badge?: string;
   avatarUrl?: string | null;
+  // 扩展字段
+  alias?: string;
+  tagline?: string;
+  audience?: string;
+  voice?: string;
+  tone?: string;
+  background?: string;
+  bio?: string;
+  callToAction?: string;
+  contentPillars?: string[];
+  hooks?: string[];
 };
 
 export type PostSummary = {
@@ -65,6 +77,58 @@ export async function getAuthUser() {
   const cookieStore = await cookies();
   const authCookie = cookieStore.get("auth-user")?.value;
   return authCookie ?? null;
+}
+
+export async function getSessionUser() {
+  const email = await getAuthUser();
+  if (!email) {
+    return null;
+  }
+
+  if (!dbAvailable()) {
+    // 如果没有数据库，返回一个默认的用户对象
+    return {
+      id: DEMO_USER_ID,
+      email,
+      username: email.split("@")[0], // 使用邮箱前缀作为用户名
+    };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+      },
+    });
+    // 如果数据库中没有找到用户，返回 null（表示未登录）
+    if (!user) {
+      return null;
+    }
+    return user;
+  } catch (error) {
+    console.error("Failed to get session user", error);
+    return null;
+  }
+}
+
+export async function getCurrentUser() {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser || !dbAvailable()) {
+    return null;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: sessionUser.id },
+    });
+    return user;
+  } catch (error) {
+    console.error("Failed to get current user", error);
+    return null;
+  }
 }
 
 const fallbackSnapshot: DashboardSnapshot = {
@@ -156,6 +220,17 @@ const personaSchema = z.object({
   domain: z.string().min(2),
   style: z.string().min(2),
   userId: z.string().uuid().optional(),
+  background: z.string().optional(),
+  audience: z.string().optional(),
+  voice: z.string().optional(),
+  tone: z.string().optional(),
+  tagline: z.string().optional(),
+  alias: z.string().optional(),
+  contentPillars: z.string().optional(),
+  hooks: z.string().optional(),
+  reminders: z.string().optional(),
+  bio: z.string().optional(),
+  callToAction: z.string().optional(),
 });
 
 const materialSchema = z.object({
@@ -180,21 +255,6 @@ const authSchema = z.object({
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 
-async function ensureDemoUser() {
-  const user = await prisma.user.upsert({
-    where: { id: DEMO_USER_ID },
-    update: {},
-    create: {
-      id: DEMO_USER_ID,
-      email: "demo@personalize.ai",
-      username: "demo_user",
-      passwordHash: "demo",
-      subscriptionPlan: "pro",
-    },
-  });
-  return user;
-}
-
 function dbAvailable() {
   return Boolean(process.env.DATABASE_URL);
 }
@@ -212,14 +272,41 @@ export async function loginAction(
     return { ok: false, message: "请提供有效的邮箱和至少6位密码" };
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set("auth-user", parsed.data.email, {
-    path: "/",
-    httpOnly: true,
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接，无法登录" };
+  }
 
-  return { ok: true, message: "登录成功" };
+  try {
+    // 查找用户
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+    });
+
+    if (!user) {
+      return { ok: false, message: "邮箱或密码错误" };
+    }
+
+    // 验证密码
+    const isValid = await verifyPassword(parsed.data.password, user.passwordHash);
+    if (!isValid) {
+      return { ok: false, message: "邮箱或密码错误" };
+    }
+
+    // 设置认证 cookie
+    const cookieStore = await cookies();
+    cookieStore.set("auth-user", parsed.data.email, {
+      path: "/",
+      httpOnly: true,
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    return { ok: true, message: "登录成功" };
+  } catch (error) {
+    console.error("Login failed", error);
+    return { ok: false, message: "登录失败，请稍后再试" };
+  }
 }
 
 export async function registerAction(
@@ -236,18 +323,60 @@ export async function registerAction(
     return { ok: false, message: "请填写有效邮箱、用户名和至少6位密码" };
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set("auth-user", parsed.data.email, {
-    path: "/",
-    httpOnly: true,
-    maxAge: 60 * 60 * 24 * 7,
-  });
-
-  if (dbAvailable()) {
-    await ensureDemoUser();
+  if (!parsed.data.username) {
+    return { ok: false, message: "用户名是必填项" };
   }
 
-  return { ok: true, message: "注册成功" };
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接，无法注册" };
+  }
+
+  try {
+    // 检查邮箱是否已存在
+    const existingUser = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+    });
+
+    if (existingUser) {
+      return { ok: false, message: "该邮箱已被注册" };
+    }
+
+    // 检查用户名是否已存在
+    const existingUsername = await prisma.user.findUnique({
+      where: { username: parsed.data.username },
+    });
+
+    if (existingUsername) {
+      return { ok: false, message: "该用户名已被使用" };
+    }
+
+    // 哈希密码
+    const passwordHash = await hashPassword(parsed.data.password);
+
+    // 创建用户
+    await prisma.user.create({
+      data: {
+        email: parsed.data.email,
+        username: parsed.data.username,
+        passwordHash,
+      },
+    });
+
+    // 设置认证 cookie
+    const cookieStore = await cookies();
+    cookieStore.set("auth-user", parsed.data.email, {
+      path: "/",
+      httpOnly: true,
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    return { ok: true, message: "注册成功" };
+  } catch (error) {
+    console.error("Register failed", error);
+    return { ok: false, message: "注册失败，请稍后再试" };
+  }
 }
 
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
@@ -256,7 +385,18 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
   }
 
   try {
-    const user = await ensureDemoUser();
+    // 获取当前登录用户
+    const user = await getCurrentUser();
+    if (!user) {
+      // 如果没有登录用户，返回空数据
+      return {
+        personas: [],
+        posts: [],
+        recommendations: [],
+        materials: [],
+      };
+    }
+
     const [personas, posts, recommendations, materials] = await Promise.all([
       prisma.kosPersona.findMany({
         where: { userId: user.id },
@@ -346,7 +486,7 @@ export async function createPersonaAction(
 ): Promise<ActionState> {
   const userIdValue = formData.get("userId");
   let userId: string | undefined;
-  
+
   if (userIdValue && typeof userIdValue === "string") {
     const trimmed = userIdValue.trim();
     // 验证是否为有效的 UUID 格式
@@ -355,12 +495,23 @@ export async function createPersonaAction(
       userId = trimmed;
     }
   }
-  
+
   const parsed = personaSchema.safeParse({
     name: formData.get("name"),
     domain: formData.get("domain"),
     style: formData.get("style"),
     userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
+    background: formData.get("background"),
+    audience: formData.get("audience"),
+    voice: formData.get("voice"),
+    tone: formData.get("tone"),
+    tagline: formData.get("tagline"),
+    alias: formData.get("alias"),
+    contentPillars: formData.get("contentPillars"),
+    hooks: formData.get("hooks"),
+    reminders: formData.get("reminders"),
+    bio: formData.get("bio"),
+    callToAction: formData.get("callToAction"),
   });
 
   if (!parsed.success) {
@@ -368,19 +519,71 @@ export async function createPersonaAction(
   }
 
   if (!dbAvailable()) {
-    return { ok: true, message: "未连接数据库，已保存到演示列表" };
+    return { ok: false, message: "数据库未连接" };
   }
 
   try {
-    const user = await ensureDemoUser();
+    // 获取当前登录用户
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // Parse array fields: support both JSON string and multiline text
+    const parseArrayField = (value: string | undefined): string[] => {
+      if (!value) return [];
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      
+      // Try to parse as JSON first
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item) => typeof item === "string" && item.trim());
+        }
+      } catch {
+        // Not JSON, treat as multiline text
+      }
+      
+      // Split by newlines and filter empty lines
+      return trimmed
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    };
+
+    const contentPillars = parseArrayField(parsed.data.contentPillars);
+    const hooks = parseArrayField(parsed.data.hooks);
+    const reminders = parseArrayField(parsed.data.reminders);
+
     await prisma.kosPersona.create({
       data: {
-        userId: parsed.data.userId ?? user.id,
+        userId: user.id, // 始终使用当前登录用户的ID
         name: parsed.data.name,
         domainTags: parsed.data.domain.split(",").map((tag) => tag.trim()),
-        expressionStyle: parsed.data.style,
+        professionalBackground: parsed.data.background ? {
+          background: parsed.data.background,
+          tagline: parsed.data.tagline,
+          alias: parsed.data.alias,
+          bio: parsed.data.bio,
+        } : {},
+        expressionStyle: {
+          style: parsed.data.style,
+          voice: parsed.data.voice,
+          tone: parsed.data.tone,
+        },
+        audienceRelation: parsed.data.audience ? {
+          audience: parsed.data.audience,
+        } : {},
+        professionalPreferences: {
+          contentPillars,
+          hooks,
+          reminders,
+          callToAction: parsed.data.callToAction,
+        },
       },
     });
+
     revalidatePath("/");
     return { ok: true, message: "人设已创建" };
   } catch (error) {
@@ -427,11 +630,15 @@ export async function createMaterialAction(
   }
 
   if (!dbAvailable()) {
-    return { ok: true, message: "未连接数据库，已记录素材信息（演示）" };
+    return { ok: false, message: "数据库未连接" };
   }
 
   try {
-    const user = await ensureDemoUser();
+    // 获取当前登录用户
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
     
     // 上传文件到 TOS
     const fileExtension = file.name.split(".").pop() || "";
@@ -454,7 +661,7 @@ export async function createMaterialAction(
     // 保存到数据库
     await prisma.productMaterial.create({
       data: {
-        userId: parsed.data.userId ?? user.id,
+        userId: user.id, // 始终使用当前登录用户的ID
         materialType: parsed.data.type as MaterialKind,
         filePath: tosUrl,
         fileName: parsed.data.name || file.name,
@@ -502,15 +709,22 @@ export async function recordGenerationAction(
   }
 
   if (!dbAvailable()) {
-    return { ok: true, message: "未连接数据库，已记录到演示生成列表" };
+    return { ok: false, message: "数据库未连接" };
   }
 
   try {
-    const user = await ensureDemoUser();
+    // 获取当前登录用户
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
 
+    // 查找人设，确保只能使用属于当前用户的人设
     const existingPersona =
       (parsed.data.persona.length === 36
-        ? await prisma.kosPersona.findUnique({ where: { id: parsed.data.persona } })
+        ? await prisma.kosPersona.findFirst({
+            where: { id: parsed.data.persona, userId: user.id },
+          })
         : await prisma.kosPersona.findFirst({
             where: { userId: user.id, name: parsed.data.persona },
           })) ?? undefined;

@@ -4,7 +4,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function PersonaCard({ persona }: { persona: PersonaSummary }) {
+export function PersonaCard({
+  persona,
+  onEdit,
+  onCopy,
+  onDelete
+}: {
+  persona: PersonaSummary;
+  onEdit?: () => void;
+  onCopy?: () => void;
+  onDelete?: () => void;
+}) {
   return (
     <Card className="relative">
       <CardContent className="p-5">
@@ -36,10 +46,16 @@ export function PersonaCard({ persona }: { persona: PersonaSummary }) {
           <span>使用次数：{persona.usage}</span>
           <span>最近：{persona.lastUsed}</span>
         </div>
-        <div className="mt-3 flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm">编辑</Button>
-          <Button variant="outline" size="sm">复制</Button>
-          <Button variant="outline" size="sm">删除</Button>
+            <div className="mt-3 flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            编辑
+          </Button>
+          <Button variant="outline" size="sm" onClick={onCopy}>
+            复制
+          </Button>
+          <Button variant="outline" size="sm" onClick={onDelete}>
+            删除
+          </Button>
         </div>
       </CardContent>
     </Card>
