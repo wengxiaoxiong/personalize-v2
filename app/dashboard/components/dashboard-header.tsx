@@ -8,10 +8,6 @@ export function DashboardHeader() {
 
   return (
     <header className="mb-8 flex items-center justify-between">
-      <div>
-        <h2 className="text-3xl font-bold">欢迎回来, {displayName}</h2>
-      </div>
-
     </header>
   );
 }
