@@ -33,7 +33,7 @@ export function PersonaChatArea({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-    // 自动滚动到底部 - 只滚动聊天容器，不影响外层页面
+    // 自动滚动到底部 - 只滚动容器本身，不影响外层页面
     useEffect(() => {
         if (messagesContainerRef.current) {
             const container = messagesContainerRef.current;

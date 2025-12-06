@@ -265,6 +265,13 @@ export function PersonaGenerator() {
         setShowSavePrompt(false);
     };
 
+    // 转换 status 类型以匹配 PersonaChatAreaProps
+    const normalizedStatus: "idle" | "streaming" | "submitted" | "error" = 
+        status === "ready" ? "idle" :
+        status === "streaming" ? "streaming" :
+        status === "submitted" ? "submitted" :
+        "error";
+
     return (
         <div className="w-full max-w-7xl mx-auto space-y-5">
             <Card>
@@ -297,16 +304,16 @@ export function PersonaGenerator() {
                     <div className="flex h-full gap-4">
                         {/* 左侧：聊天区 - 占据更多空间 */}
                         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                            <PersonaChatArea
-                                messages={messages}
-                                status={status}
-                                error={error}
-                                completion={completion}
-                                isGeneratingPersona={isGeneratingPersona}
-                                handleSubmitAnswer={handleSubmitAnswer}
-                                resetChat={resetChat}
-                                stop={stop}
-                            />
+                <PersonaChatArea
+                    messages={messages}
+                    status={normalizedStatus}
+                    error={error ?? null}
+                    completion={completion}
+                    isGeneratingPersona={isGeneratingPersona}
+                    handleSubmitAnswer={handleSubmitAnswer}
+                    resetChat={resetChat}
+                    stop={stop}
+                />
                         </div>
 
                         {/* 右侧：实时 Persona 面板 - 宽度较小 */}

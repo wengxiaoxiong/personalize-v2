@@ -41,7 +41,7 @@ ${nextQuestion}`;
 
             // 构造对话上下文
             const modelMessages = [
-                { role: "system", content: systemPrompt },
+                { role: "system" as const, content: systemPrompt },
                 ...convertToModelMessages(messages), // 历史对话
             ];
 
@@ -49,8 +49,7 @@ ${nextQuestion}`;
                 model: deepseek("deepseek-chat"),
                 messages: modelMessages,
                 temperature: 0, // 固定输出
-                // 增加 stop 属性，防止 AI 在输出问题后继续生成额外内容
-                stop: ["\n", "。", "！", "？", "～", "，", "请"],
+                // system prompt 已经限制了输出内容，不需要额外限制
             });
 
             return result.toUIMessageStreamResponse({
@@ -70,11 +69,10 @@ ${finishPrompt}`;
             model: deepseek("deepseek-chat"),
             messages: [
                 ...convertToModelMessages(messages), // 历史对话
-                { role: "system", content: finishSystemPrompt }
+                { role: "system" as const, content: finishSystemPrompt }
             ],
             temperature: 0,
-            // 增加 stop 属性，防止 AI 在输出提示后继续生成额外内容
-            stop: ["\n", "。", "！", "？", "～", "，"],
+            // system prompt 已经限制了输出内容
         });
 
         return result.toUIMessageStreamResponse({
@@ -82,10 +80,11 @@ ${finishPrompt}`;
             sendReasoning: false,
         });
 
-    } catch (err: any) {
+    } catch (err) {
         console.error("Chat接口错误:", err);
+        const errorMessage = err instanceof Error ? err.message : "对话服务异常，请重试";
         return NextResponse.json(
-            { success: false, error: "对话服务异常，请重试" },
+            { success: false, error: errorMessage },
             { status: 500 }
         );
     }
