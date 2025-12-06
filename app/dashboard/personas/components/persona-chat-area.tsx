@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 // 关键修改：导入 UIMessage 而非 Message
 import type { UIMessage } from "@ai-sdk/react";
 import { Loader2, StopCircle, Send, RefreshCw, User, Bot, CopyIcon } from "lucide-react";
@@ -31,6 +31,19 @@ export function PersonaChatArea({
                                     stop,
                                 }: PersonaChatAreaProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+    // 自动滚动到底部 - 只滚动聊天容器，不影响外层页面
+    useEffect(() => {
+        if (messagesContainerRef.current) {
+            const container = messagesContainerRef.current;
+            // 直接滚动到容器底部，只影响容器本身
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: "smooth"
+            });
+        }
+    }, [messages, completion, status]);
 
     const copyCompletion = () => {
         navigator.clipboard.writeText(completion);
@@ -40,9 +53,12 @@ export function PersonaChatArea({
     const disableSubmit = status === "streaming" || isGeneratingPersona;
 
     return (
-        <div className="space-y-5">
+        <div className="flex flex-col h-full space-y-4 p-4 overflow-hidden">
             {/* 聊天消息展示区域 */}
-            <div className="border rounded-xl p-4 h-[500px] overflow-y-auto bg-background/80 space-y-6">
+            <div 
+                ref={messagesContainerRef}
+                className="flex-1 border rounded-xl p-4 overflow-y-auto bg-background/80 space-y-6 min-h-0"
+            >
                 {messages.map((msg, idx) => {
                     const msgText = msg.parts
                         .filter(part => part.type === "text")
@@ -147,7 +163,7 @@ export function PersonaChatArea({
             </div>
 
             {/* 输入区域 */}
-            <form onSubmit={handleSubmitAnswer} className="space-y-2">
+            <form onSubmit={handleSubmitAnswer} className="space-y-2 flex-shrink-0">
                 <Textarea
                     placeholder={!isGeneratingPersona
                         ? "在这里输入你的回答..."

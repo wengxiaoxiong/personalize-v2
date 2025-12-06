@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { parsePersonaMarkdown, type PersonaParseResult } from "@/lib/persona-parser";
 import { createPersonaAction, type ActionState } from "@/app/actions";
 import { PersonaChatArea } from "./persona-chat-area";
+import { PersonaLivePanel, type LivePersonaData } from "./persona-live-panel";
+import { extractPersonaFromMessages } from "@/lib/persona-extractor";
 import { DefaultChatTransport } from "ai";
 
 // 固定提问列表（口语化）
@@ -39,6 +41,11 @@ export function PersonaGenerator() {
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
     const [isGeneratingPersona, setIsGeneratingPersona] = useState(false);
     const [completion, setCompletion] = useState("");
+    const [livePersonaData, setLivePersonaData] = useState<LivePersonaData>({
+        domainTags: [],
+        contentPillars: [],
+        hooks: [],
+    });
     const lastPreviewRef = useRef<PersonaParseResult | null>(null);
     const isFirstLoad = useRef(true); // 标记是否首次加载
 
@@ -162,6 +169,12 @@ export function PersonaGenerator() {
         fetchPersona();
     }, [isGeneratingPersona, messages]);
 
+    // 从对话中实时提取 Persona 信息
+    useEffect(() => {
+        const extracted = extractPersonaFromMessages(messages);
+        setLivePersonaData(extracted);
+    }, [messages]);
+
     // 解析Markdown预览
     useEffect(() => {
         if (!completion) {
@@ -173,6 +186,21 @@ export function PersonaGenerator() {
         if (parsed) {
             lastPreviewRef.current = parsed;
             setPreview(parsed);
+            // 如果解析成功，也更新实时面板
+            setLivePersonaData({
+                name: parsed.name,
+                alias: parsed.alias,
+                tagline: parsed.tagline,
+                audience: parsed.audience,
+                domainTags: parsed.domainTags,
+                voice: parsed.voice,
+                tone: parsed.tone,
+                style: parsed.style,
+                background: parsed.background,
+                contentPillars: parsed.contentPillars,
+                hooks: parsed.hooks,
+                callToAction: parsed.callToAction,
+            });
         }
     }, [completion]);
 
@@ -208,6 +236,11 @@ export function PersonaGenerator() {
         setShowEditForm(false);
         setSaveMessage(null);
         setIsGeneratingPersona(false);
+        setLivePersonaData({
+            domainTags: [],
+            contentPillars: [],
+            hooks: [],
+        });
 
         // 重置时重新设置初始消息
         setMessages([
@@ -233,77 +266,105 @@ export function PersonaGenerator() {
     };
 
     return (
-        <Card className="max-w-4xl mx-auto">
-            <CardHeader className="gap-2">
-                <div>
-                    <CardTitle className="text-lg">AI 人设生成助手</CardTitle>
-                    <CardDescription>跟我聊聊天，我会帮你打造专属KOS人设～</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Badge variant="secondary">对话模式</Badge>
-                    {status === "streaming" && (
-                        <Badge variant="outline" className="flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            思考中...
-                        </Badge>
-                    )}
-                    {isGeneratingPersona && (
-                        <Badge variant="outline" className="flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            生成人设中...
-                        </Badge>
-                    )}
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-                <PersonaChatArea
-                    messages={messages}
-                    status={status}
-                    error={error}
-                    completion={completion}
-                    isGeneratingPersona={isGeneratingPersona}
-                    handleSubmitAnswer={handleSubmitAnswer}
-                    resetChat={resetChat}
-                    stop={stop}
-                />
-
-                {saveMessage && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-800">
-                        ✅ {saveMessage}
+        <div className="w-full max-w-7xl mx-auto space-y-5">
+            <Card>
+                <CardHeader className="gap-2">
+                    <div>
+                        <CardTitle className="text-lg">AI 人设生成助手</CardTitle>
+                        <CardDescription>跟我聊聊天，我会帮你打造专属KOS人设～</CardDescription>
                     </div>
-                )}
+                    <div className="flex items-center gap-2">
+                        <Badge variant="secondary">对话模式</Badge>
+                        {status === "streaming" && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                思考中...
+                            </Badge>
+                        )}
+                        {isGeneratingPersona && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                生成人设中...
+                            </Badge>
+                        )}
+                    </div>
+                </CardHeader>
+            </Card>
 
-                {showSavePrompt && finalPersona && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-                        <p className="font-medium text-amber-800">🎉 人设生成完毕！</p>
-                        <p className="mt-1 text-sm text-amber-700">
-                            我已经帮你生成了专属KOS人设，是否保存到数据库？
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            <Button size="sm" onClick={handleSaveDecision} className="bg-amber-600 hover:bg-amber-700">
-                                <Save className="mr-1.5 h-4 w-4" />
-                                保存人设
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setShowSavePrompt(false)}
-                            >
-                                稍后保存
-                            </Button>
+            {/* 左右分栏布局 - 在同一个 Card 内 */}
+            <Card className="h-[calc(100vh-280px)] min-h-[600px]">
+                <CardContent className="h-full p-0">
+                    <div className="flex h-full gap-4">
+                        {/* 左侧：聊天区 - 占据更多空间 */}
+                        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                            <PersonaChatArea
+                                messages={messages}
+                                status={status}
+                                error={error}
+                                completion={completion}
+                                isGeneratingPersona={isGeneratingPersona}
+                                handleSubmitAnswer={handleSubmitAnswer}
+                                resetChat={resetChat}
+                                stop={stop}
+                            />
+                        </div>
+
+                        {/* 右侧：实时 Persona 面板 - 宽度较小 */}
+                        <div className="w-80 flex-shrink-0 border-l pl-4 h-full overflow-hidden">
+                            <PersonaLivePanel 
+                                data={livePersonaData} 
+                                isLoading={status === "streaming" || isGeneratingPersona}
+                            />
                         </div>
                     </div>
-                )}
+                </CardContent>
+            </Card>
 
-                {showEditForm && finalPersona && (
-                    <PersonaSaveForm
-                        persona={finalPersona}
-                        onSuccess={handleSaved}
-                        onCancel={() => setShowEditForm(false)}
-                    />
-                )}
-            </CardContent>
-        </Card>
+            {/* 保存提示和表单 */}
+            {saveMessage && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-800">
+                    ✅ {saveMessage}
+                </div>
+            )}
+
+            {showSavePrompt && finalPersona && (
+                <Card>
+                    <CardContent className="p-4">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                            <p className="font-medium text-amber-800">🎉 人设生成完毕！</p>
+                            <p className="mt-1 text-sm text-amber-700">
+                                我已经帮你生成了专属KOS人设，是否保存到数据库？
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <Button size="sm" onClick={handleSaveDecision} className="bg-amber-600 hover:bg-amber-700">
+                                    <Save className="mr-1.5 h-4 w-4" />
+                                    保存人设
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setShowSavePrompt(false)}
+                                >
+                                    稍后保存
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {showEditForm && finalPersona && (
+                <Card>
+                    <CardContent className="p-4">
+                        <PersonaSaveForm
+                            persona={finalPersona}
+                            onSuccess={handleSaved}
+                            onCancel={() => setShowEditForm(false)}
+                        />
+                    </CardContent>
+                </Card>
+            )}
+        </div>
     );
 }
 
