@@ -1,10 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import React, { useActionState, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { Loader2, Pencil, Save } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Pencil, Save } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,7 +33,6 @@ type PersonaSaveFormProps = {
 };
 
 export function PersonaGenerator() {
-  const [preview, setPreview] = useState<PersonaParseResult | null>(null);
   const [finalPersona, setFinalPersona] = useState<PersonaParseResult | null>(null);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -232,7 +230,8 @@ export function PersonaGenerator() {
     };
 
     fetchPersona();
-  }, [isGeneratingPersona, generationMode]); // 移除 messages 依赖，避免重复触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGeneratingPersona, generationMode]); // 移除 messages 和 completion 依赖，避免重复触发
 
   // 从对话中实时提取 Persona 信息
   // 注意：在生成人设时，停止从消息中提取，避免与 completion 解析的结果冲突
@@ -271,7 +270,6 @@ export function PersonaGenerator() {
   // 解析Markdown预览
   useEffect(() => {
     if (!completion) {
-      setPreview(null);
       lastPreviewRef.current = null;
       return;
     }
@@ -288,7 +286,6 @@ export function PersonaGenerator() {
 
       if (isDifferent) {
         lastPreviewRef.current = parsed;
-        setPreview(parsed);
 
         // 如果解析成功，也更新实时面板（只在有实际变化时更新）
         setLivePersonaData({
@@ -353,7 +350,6 @@ export function PersonaGenerator() {
   // 重置对话（更新重置逻辑，确保重新设置初始消息）
   const resetChat = async () => {
     setCompletion("");
-    setPreview(null);
     setFinalPersona(null);
     setShowSavePrompt(false);
     setShowEditForm(false);
@@ -463,7 +459,7 @@ export function PersonaGenerator() {
             </div>
 
             {/* 右侧：实时 Persona 面板 - 宽度较小 */}
-            <div className="w-80 flex-shrink-0 border-l pl-4 h-full overflow-hidden">
+            <div className="w-80 shrink-0 border-l pl-4 h-full overflow-hidden">
               <PersonaLivePanel
                 data={livePersonaData}
                 isLoading={status === "streaming" || isGeneratingPersona}

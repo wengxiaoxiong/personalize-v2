@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useDashboard } from "@/components/providers/dashboard-provider";
 
 export function DashboardHeader() {

@@ -4,9 +4,35 @@
  */
 
 // PDF.js types
+interface PDFJSLib {
+  GlobalWorkerOptions: {
+    workerSrc: string;
+  };
+  getDocument: (options: { data: ArrayBuffer }) => {
+    promise: Promise<PDFDocument>;
+  };
+}
+
+interface PDFDocument {
+  numPages: number;
+  getPage: (pageNum: number) => Promise<PDFPage>;
+}
+
+interface PDFPage {
+  getViewport: (options: { scale: number }) => PDFViewport;
+  render: (context: { canvasContext: CanvasRenderingContext2D | null; viewport: PDFViewport }) => {
+    promise: Promise<void>;
+  };
+}
+
+interface PDFViewport {
+  height: number;
+  width: number;
+}
+
 declare global {
   interface Window {
-    pdfjsLib: any;
+    pdfjsLib: PDFJSLib;
   }
 }
 
@@ -16,7 +42,7 @@ const TESSERACT_LANG = "chi_sim+eng";
 /**
  * 加载 PDF.js 库（参考你的代码）
  */
-async function loadPDFJS(): Promise<any> {
+async function loadPDFJS(): Promise<PDFJSLib> {
   if (window.pdfjsLib) return window.pdfjsLib;
 
   return new Promise((resolve, reject) => {
@@ -119,8 +145,8 @@ export async function parsePdfToText(
         pageImage.dataUrl,
         TESSERACT_LANG,
         {
-          logger: (m: any) => {
-            if (m.status === "recognizing text" && onProgress) {
+          logger: (m: { status?: string; progress?: number }) => {
+            if (m.status === "recognizing text" && onProgress && typeof m.progress === "number") {
               const currentPageProgress = (i + m.progress) / maxPages;
               const overallProgress = progressStart + currentPageProgress * progressRange;
               onProgress(`正在识别第 ${pageImage.pageNumber} 页...`, overallProgress);

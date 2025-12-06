@@ -34,8 +34,8 @@ export async function POST(req: Request) {
             // 提取 parts 中的文本内容
             if (m.parts && Array.isArray(m.parts)) {
                 const text = m.parts
-                    .filter((part: any) => part.type === "text")
-                    .map((part: any) => part.text)
+                    .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                    .map((part) => part.text)
                     .join("");
                 return text.trim().length > 0;
             }
@@ -45,8 +45,8 @@ export async function POST(req: Request) {
         // 检查是否有 PDF 上传的内容
         const hasPdfContent = userMessages.some(msg => {
             const text = msg.parts
-                .filter((part: any) => part.type === "text")
-                .map((part: any) => part.text)
+                .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                .map((part) => part.text)
                 .join("");
             return text.includes("[已上传简历/PDF]");
         });
@@ -54,8 +54,8 @@ export async function POST(req: Request) {
         // 过滤掉 PDF 上传消息，只统计正常回答
         const normalUserMessages = userMessages.filter(msg => {
             const text = msg.parts
-                .filter((part: any) => part.type === "text")
-                .map((part: any) => part.text)
+                .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                .map((part) => part.text)
                 .join("");
             return !text.includes("[已上传简历/PDF]");
         });
@@ -68,8 +68,8 @@ export async function POST(req: Request) {
             // 检查用户是否输入了生成关键词
             const lastUserMessage = userMessages[userMessages.length - 1];
             const lastUserText = lastUserMessage?.parts
-                .filter((part: any) => part.type === "text")
-                .map((part: any) => part.text)
+                .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                .map((part) => part.text)
                 .join("") || "";
             
             const generateKeywords = ["生成人设", "生成", "开始生成", "生成吧", "可以生成了"];
@@ -137,8 +137,8 @@ ${pdfPrompt}`;
             // 检查历史对话中是否已经问过类似的问题
             const hasAskedSimilar = assistantMessages.some(msg => {
                 const msgText = msg.parts
-                    .filter((part: any) => part.type === "text")
-                    .map((part: any) => part.text)
+                    .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                    .map((part) => part.text)
                     .join("");
                 // 检查是否包含当前问题的核心关键词
                 const currentKeywords = nextQuestion.substring(0, 15);

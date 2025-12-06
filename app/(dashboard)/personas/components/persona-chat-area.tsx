@@ -147,7 +147,7 @@ export function PersonaChatArea({
                                                 : "bg-muted rounded-tl-none"
                                         )}
                                     >
-                                        <div className="whitespace-pre-wrap break-words">
+                                        <div className="whitespace-pre-wrap wrap-break-word">
                                             {msgText}
                                         </div>
                                     </div>
@@ -168,7 +168,7 @@ export function PersonaChatArea({
                         <div className="flex-1 max-w-[80%]">
                             <div className="font-medium text-sm mb-1">AI助手</div>
                             <div className="rounded-2xl p-4 text-sm bg-muted/80 rounded-tl-none font-mono">
-                                <div className="whitespace-pre-wrap break-words">
+                                <div className="whitespace-pre-wrap wrap-break-word">
                                     {completion}
                                 </div>
                                 <Button
@@ -231,7 +231,7 @@ export function PersonaChatArea({
             </div>
 
             {/* 输入区域 */}
-            <form onSubmit={handleSubmitAnswer} className="space-y-2 flex-shrink-0">
+            <form onSubmit={handleSubmitAnswer} className="space-y-2 shrink-0">
                 {/* PDF 上传区域 */}
                 <div className="flex items-center gap-2 flex-wrap">
                     <input

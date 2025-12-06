@@ -34,7 +34,7 @@ export function PersonaLivePanel({ data, isLoading }: PersonaLivePanelProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="pb-3 border-b mb-4 flex-shrink-0">
+      <div className="pb-3 border-b mb-4 shrink-0">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
           <h3 className="text-base font-semibold">实时人设预览</h3>
