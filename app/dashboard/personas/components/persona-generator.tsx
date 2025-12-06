@@ -1,25 +1,31 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { useCompletion } from "@ai-sdk/react";
-import { Sparkles, Loader2, StopCircle, Pencil, Save, RefreshCw } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { Loader2, Pencil, Save } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { parsePersonaMarkdown, type PersonaParseResult } from "@/lib/persona-parser";
 import { createPersonaAction, type ActionState } from "@/app/actions";
+import { PersonaChatArea } from "./persona-chat-area";
+import { PersonaLivePanel, type LivePersonaData } from "./persona-live-panel";
+import { extractPersonaFromMessages } from "@/lib/persona-extractor";
+import { DefaultChatTransport } from "ai";
+import { parsePdfToText } from "@/lib/resume-parser";
 
-const EXAMPLE_BRIEF = `品牌：潮流生活方式集合店 OnBeat Lab
-现有人设想法：想打造一位“夜生活体验官”，在各大平台种草光感穿搭、派对小物、独立音乐短场景，兼顾实用与氛围感。
-内容需求：
-- 输出中英文夹杂的风格，偏年轻，强调“夜色感”
-- 目标人群是 18-28 岁的一二线城市青年
-- 内容方向需要覆盖穿搭、香氛、线下派对以及数字艺术展
-额外约束：适合在小红书、抖音使用，需要带动粉丝现场互动。`;
+// 固定提问列表（口语化）
+const QUESTIONS = [
+    "嗨～ 先跟我说说你的账号是个人账号还是公司账号呀？比如「个人」或者「OnBeat Lab 品牌账号」这样～",
+    "接下来告诉我账号主体的性别和生活特征吧！比如「女性，喜欢夜生活、独立音乐、数字艺术」",
+    "目标受众是哪些小伙伴呢？比如「18-28岁一二线城市潮流青年」",
+    "内容主要覆盖哪些领域呀？比如「穿搭、香氛、线下派对、数字艺术展」",
+    "有没有平台特定要求或互动需求？比如「小红书/抖音适配，需要带动现场互动」",
+];
 
 type PersonaSaveFormProps = {
   persona: PersonaParseResult;
@@ -28,62 +34,350 @@ type PersonaSaveFormProps = {
 };
 
 export function PersonaGenerator() {
-  const [brief, setBrief] = useState(EXAMPLE_BRIEF);
-  const [goal, setGoal] = useState("生成一个可直接用于 KOS dashboard 的人设模板，并突出互动性。");
   const [preview, setPreview] = useState<PersonaParseResult | null>(null);
   const [finalPersona, setFinalPersona] = useState<PersonaParseResult | null>(null);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+    const [isGeneratingPersona, setIsGeneratingPersona] = useState(false);
+    const [completion, setCompletion] = useState("");
+    const [livePersonaData, setLivePersonaData] = useState<LivePersonaData>({
+        domainTags: [],
+        contentPillars: [],
+        hooks: [],
+    });
   const lastPreviewRef = useRef<PersonaParseResult | null>(null);
+    const isFirstLoad = useRef(true); // 标记是否首次加载
+    const hasTriggeredGeneration = useRef(false); // 标记是否已经触发生成，防止重复调用
+    const [pdfUploading, setPdfUploading] = useState(false);
+    const [pdfProgress, setPdfProgress] = useState<{ stage: string; progress: number } | undefined>();
+    const [generationMode, setGenerationMode] = useState<"chat" | "pdf" | null>(null); // 区分生成模式
 
   const {
-    completion,
-    complete,
-    isLoading,
+        messages,
+        sendMessage,
+        status,
     stop,
-    setCompletion,
     error,
-  } = useCompletion({
-    api: "/api/personas/generate",
-    body: { brief, goal },
-    experimental_throttle: 50,
-    onFinish: async () => {
-      const parsed = lastPreviewRef.current ?? parsePersonaMarkdown(completion);
+        setMessages, // 新增：用于手动设置初始消息
+    } = useChat({
+        transport: new DefaultChatTransport({
+            api: '/api/chat',
+        }),
+        // 移除 initialMessages，改为 useEffect 初始化
+    });
+
+    // 初始化第一条AI消息（页面加载时）
+    useEffect(() => {
+        if (isFirstLoad.current) {
+            isFirstLoad.current = false;
+            // 设置初始消息，让AI助手主动发送第一条提问
+            setMessages([
+                {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    parts: [{ type: "text", text: QUESTIONS[0] }],
+                },
+            ]);
+        }
+    }, [setMessages]);
+
+    // 修复：正确解析SSE流式响应（对话模式和PDF模式）
+    useEffect(() => {
+        if (!isGeneratingPersona || !generationMode) return;
+        
+        // 检查是否有消息
+        if (!messages || messages.length === 0) return;
+
+        // 防止重复调用：如果 completion 已经有内容，说明已经在生成中
+        if (completion && completion.trim().length > 0 && !completion.includes("❌")) {
+            console.log("[PersonaGenerator] 检测到已有生成内容，跳过重复调用");
+            return;
+        }
+
+        const fetchPersona = async () => {
+            try {
+                // 检查是否有 PDF 内容
+                const hasPdfContent = messages.some(msg => 
+                    msg.role === "user" && 
+                    msg.parts.some(part => 
+                        part.type === "text" && 
+                        part.text.includes("[已上传简历/PDF]")
+                    )
+                );
+
+                let requestBody;
+                if (hasPdfContent && generationMode === "pdf") {
+                    // PDF 模式：提取 PDF 内容和用户补充的需求
+                    const pdfMessage = messages.find(msg => 
+                        msg.role === "user" && 
+                        msg.parts.some(part => 
+                            part.type === "text" && 
+                            part.text.includes("[已上传简历/PDF]")
+                        )
+                    );
+                    const userSupplements = messages
+                        .filter(msg => 
+                            msg.role === "user" && 
+                            !msg.parts.some(part => 
+                                part.type === "text" && 
+                                part.text.includes("[已上传简历/PDF]")
+                            )
+                        )
+                        .map(msg => 
+                            msg.parts
+                                .filter(part => part.type === "text")
+                                .map(part => part.text)
+                                .join("")
+                        )
+                        .join("\n");
+
+                    const pdfText = pdfMessage?.parts
+                        .filter(part => part.type === "text")
+                        .map(part => part.text)
+                        .join("")
+                        .replace("[已上传简历/PDF]\n\n", "") || "";
+
+                    requestBody = {
+                        brief: pdfText + (userSupplements ? `\n\n用户补充需求：\n${userSupplements}` : ""),
+                        goal: "基于上传的PDF内容和用户补充的需求，生成一个可直接用于 KOS dashboard 的人设模板，并突出互动性。",
+                    };
+                } else {
+                    // 正常对话模式
+                    requestBody = {
+                        messages: messages.map((msg) => ({
+                            role: msg.role,
+                            content: msg.parts
+                                .filter(part => part.type === "text")
+                                .map(part => part.text)
+                                .join(""),
+                        })),
+                    };
+                }
+
+                const response = await fetch("/api/personas/generate", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(requestBody),
+                });
+
+                if (!response.ok) throw new Error("生成人设失败");
+                if (!response.body) throw new Error("无响应内容");
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = "";
+                let buffer = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+
+                        if (line.startsWith("data: ")) {
+                            const dataStr = line.slice(6);
+                            if (dataStr === "[DONE]") continue;
+
+                            try {
+                                const data = JSON.parse(dataStr);
+                                if (data.type === "text-delta" && data.delta) {
+                                    fullText += data.delta;
+                                    setCompletion(fullText);
+                                }
+                            } catch (e) {
+                                console.error("解析SSE数据失败:", e, "原始数据:", line);
+                            }
+                        }
+                    }
+                }
+
+                if (buffer) {
+                    if (buffer.startsWith("data: ")) {
+                        const dataStr = buffer.slice(6);
+                        if (dataStr !== "[DONE]") {
+                            try {
+                                const data = JSON.parse(dataStr);
+                                if (data.type === "text-delta" && data.delta) {
+                                    fullText += data.delta;
+                                    setCompletion(fullText);
+                                }
+                            } catch (e) {
+                                console.error("解析最后一块SSE数据失败:", e);
+                            }
+                        }
+                    }
+                }
+
+                const parsed = parsePersonaMarkdown(fullText);
       if (parsed) {
         setFinalPersona(parsed);
         setShowSavePrompt(true);
       }
-    },
-  });
+            } catch (err) {
+                console.error("生成人设错误：", err);
+                setCompletion("❌ 生成人设失败，请点击重新开始重试");
+                hasTriggeredGeneration.current = false; // 失败时重置标记，允许重试
+            } finally {
+                setIsGeneratingPersona(false);
+                setGenerationMode(null);
+            }
+        };
 
-  useEffect(() => {
-    if (!completion) {
-      setPreview(null);
-      lastPreviewRef.current = null;
-      return;
-    }
-    const parsed = parsePersonaMarkdown(completion);
-    if (parsed) {
-      lastPreviewRef.current = parsed;
-      setPreview(parsed);
-    }
-  }, [completion]);
+        fetchPersona();
+    }, [isGeneratingPersona, generationMode]); // 移除 messages 依赖，避免重复触发
 
-  const disableGenerate = useMemo(() => brief.trim().length < 40 || isLoading, [brief, isLoading]);
+    // 从对话中实时提取 Persona 信息
+    // 注意：在生成人设时，停止从消息中提取，避免与 completion 解析的结果冲突
+    useEffect(() => {
+        // 如果正在生成人设，不更新实时面板（使用 completion 解析的结果）
+        if (isGeneratingPersona) return;
+        
+        const extracted = extractPersonaFromMessages(messages);
+        setLivePersonaData(extracted);
+    }, [messages, isGeneratingPersona]);
 
-  const handleGenerate = () => {
-    setSaveMessage(null);
+    // 监听 chat API 返回的结束提示，触发生成人设
+    useEffect(() => {
+        // 如果已经在生成中，或者已经触发过，不重复触发
+        if (generationMode !== null || hasTriggeredGeneration.current) return;
+        
+        // 检查最后一条 assistant 消息是否是结束提示
+        const lastMessage = messages[messages.length - 1];
+        if (!lastMessage || lastMessage.role !== "assistant") return;
+        
+        const lastMessageText = lastMessage.parts
+            .filter(part => part.type === "text")
+            .map(part => part.text)
+            .join("");
+        
+        // 如果最后一条消息包含结束提示，触发生成人设
+        if (lastMessageText.includes("🎉 好啦！我已经收集完所有信息") || 
+            lastMessageText.includes("现在开始为你生成专属人设")) {
+            console.log("[PersonaGenerator] 检测到结束提示，开始生成人设");
+            hasTriggeredGeneration.current = true; // 标记已触发，防止重复
+            setGenerationMode("chat");
+            setIsGeneratingPersona(true);
+        }
+    }, [messages, generationMode]);
+
+    // 解析Markdown预览
+    useEffect(() => {
+        if (!completion) {
+            setPreview(null);
+            lastPreviewRef.current = null;
+            return;
+        }
+        
+        const parsed = parsePersonaMarkdown(completion);
+        if (parsed) {
+            // 只有当解析结果与上次不同时，才更新（避免频繁更新导致闪烁）
+            const lastParsed = lastPreviewRef.current;
+            const isDifferent = !lastParsed || 
+                lastParsed.name !== parsed.name ||
+                lastParsed.alias !== parsed.alias ||
+                JSON.stringify(lastParsed.domainTags) !== JSON.stringify(parsed.domainTags) ||
+                lastParsed.audience !== parsed.audience;
+            
+            if (isDifferent) {
+                lastPreviewRef.current = parsed;
+                setPreview(parsed);
+                
+                // 如果解析成功，也更新实时面板（只在有实际变化时更新）
+                setLivePersonaData({
+                    name: parsed.name,
+                    alias: parsed.alias,
+                    tagline: parsed.tagline,
+                    audience: parsed.audience,
+                    domainTags: parsed.domainTags,
+                    voice: parsed.voice,
+                    tone: parsed.tone,
+                    style: parsed.style,
+                    background: parsed.background,
+                    contentPillars: parsed.contentPillars,
+                    hooks: parsed.hooks,
+                    callToAction: parsed.callToAction,
+                });
+            }
+        }
+    }, [completion]);
+
+    // 提交回答/生成人设
+    const handleSubmitAnswer = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const userInputEl = e.target as HTMLFormElement;
+        const inputEl = userInputEl.querySelector("textarea") as HTMLTextAreaElement;
+        const trimmedInput = inputEl.value.trim();
+        if (!trimmedInput) return;
+
+        // 检查是否有 PDF 上传的内容
+        const hasPdfContent = messages.some(msg => 
+            msg.role === "user" && 
+            msg.parts.some(part => 
+                part.type === "text" && 
+                part.text.includes("[已上传简历/PDF]")
+            )
+        );
+
+        // 检查用户是否输入了生成人设的关键词（仅用于 PDF 模式）
+        const generateKeywords = ["生成人设", "生成", "开始生成", "生成吧", "可以生成了"];
+        const shouldGenerate = generateKeywords.some(keyword => 
+            trimmedInput.toLowerCase().includes(keyword.toLowerCase())
+        );
+
+        inputEl.value = "";
+
+        // 发送消息，让 chat API 判断下一步
+        await sendMessage({ parts: [{ type: "text", text: trimmedInput }] });
+
+        // 只有 PDF 模式且用户输入了生成关键词时，才在前端直接触发生成
+        // 正常对话模式：让 chat API 返回结束提示，然后通过 useEffect 监听来触发
+        if (shouldGenerate && hasPdfContent) {
+            // PDF 模式：用户主动触发生成
+            if (!hasTriggeredGeneration.current) {
+                hasTriggeredGeneration.current = true; // 标记已触发，防止重复
+                setGenerationMode("pdf");
+                setIsGeneratingPersona(true);
+            }
+        }
+        // 注意：正常对话模式不再在这里判断，改为监听 chat API 的结束提示
+    };
+
+    // 重置对话（更新重置逻辑，确保重新设置初始消息）
+    const resetChat = async () => {
     setCompletion("");
     setPreview(null);
     setFinalPersona(null);
     setShowSavePrompt(false);
     setShowEditForm(false);
-    lastPreviewRef.current = null;
+        setSaveMessage(null);
+        setIsGeneratingPersona(false);
+        setGenerationMode(null);
+        hasTriggeredGeneration.current = false; // 重置触发标记
+        setLivePersonaData({
+            domainTags: [],
+            contentPillars: [],
+            hooks: [],
+        });
 
-    complete(brief, { body: { brief, goal } });
-  };
+        // 重置时重新设置初始消息
+        setMessages([
+            {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                parts: [{ type: "text", text: QUESTIONS[0] }],
+            },
+        ]);
+    };
 
+    // 保存处理
   const handleSaveDecision = () => {
     if (!finalPersona) return;
     setShowSavePrompt(false);
@@ -91,219 +385,166 @@ export function PersonaGenerator() {
   };
 
   const handleSaved = (message?: string) => {
-    setSaveMessage(message ?? "人设已保存");
+        setSaveMessage(message ?? "人设已保存成功！");
     setShowEditForm(false);
     setShowSavePrompt(false);
   };
 
+    // 处理 PDF 上传和解析
+    const handlePdfUpload = async (file: File) => {
+        setPdfUploading(true);
+        setPdfProgress({ stage: "开始解析...", progress: 0 });
+
+        try {
+            // 1. 提取 PDF 文字（PDF转图片 + OCR）
+            const extractedText = await parsePdfToText(file, (stage, progress) => {
+                setPdfProgress({ stage, progress });
+            });
+
+            console.log(`PDF 解析完成，提取了 ${extractedText.length} 个字符`);
+            
+            // 检查提取的文字是否为空
+            if (!extractedText || extractedText.trim().length === 0) {
+                throw new Error("PDF 文字提取失败，未能提取到任何文字内容。请检查 PDF 文件是否清晰。");
+            }
+
+            // 显示提取的文字预览（前 200 字符）
+            console.log("提取的文字预览:", extractedText.substring(0, 200));
+
+            // 2. 将 PDF 文本作为用户消息添加到对话中
+            // 添加一个标记，表示这是 PDF 上传的内容
+            const pdfMessageText = `[已上传简历/PDF]\n\n${extractedText.substring(0, 2000)}${extractedText.length > 2000 ? '...' : ''}`;
+            
+            await sendMessage({ 
+                parts: [{ type: "text", text: pdfMessageText }] 
+            });
+
+            // 3. 等待 AI 回复（chat API 会识别 PDF 上传场景并给出合适的回复）
+            // 用户可以在对话框中继续输入需求，然后输入"生成人设"来触发
+        } catch (err) {
+            console.error("PDF 处理错误：", err);
+            const errorMessage = err instanceof Error ? err.message : "PDF 处理失败，请重试";
+            alert(errorMessage);
+        } finally {
+            setPdfUploading(false);
+            setPdfProgress(undefined);
+        }
+    };
+
+    // 转换 status 类型以匹配 PersonaChatAreaProps
+    const normalizedStatus: "idle" | "streaming" | "submitted" | "error" = 
+        status === "ready" ? "idle" :
+        status === "streaming" ? "streaming" :
+        status === "submitted" ? "submitted" :
+        "error";
+
   return (
+        <div className="w-full max-w-7xl mx-auto space-y-5">
     <Card>
       <CardHeader className="gap-2">
         <div>
-          <CardTitle className="text-lg">AI 人设生成</CardTitle>
-          <CardDescription>通过 useCompletion 流式生成 Markdown，人设解析实时可视化。</CardDescription>
+                        <CardTitle className="text-lg">AI 人设生成助手</CardTitle>
+                        <CardDescription>跟我聊聊天，我会帮你打造专属KOS人设～</CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">useCompletion</Badge>
-          {isLoading && <Badge variant="outline">流式生成中...</Badge>}
+                        <Badge variant="secondary">对话模式</Badge>
+                        {status === "streaming" && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                思考中...
+                            </Badge>
+                        )}
+                        {isGeneratingPersona && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                生成人设中...
+                            </Badge>
+                        )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-5 text-sm">
-        <div className="space-y-2">
-          <Label htmlFor="persona-brief" className="text-xs font-semibold uppercase tracking-wide">
-            人设 Brief
-          </Label>
-          <Textarea
-            id="persona-brief"
-            value={brief}
-            onChange={(event) => setBrief(event.target.value)}
-            placeholder="描述你的人设目标、品牌调性、受众、平台..."
-            className="min-h-[180px] resize-y text-sm font-mono"
-          />
-          <p className="text-xs text-muted-foreground">
-            你可以粘贴研究笔记或创作任务，越详细越能得到准确人设（当前 {brief.trim().length} 字）。
-          </p>
-        </div>
+            </Card>
 
-        <div className="space-y-2">
-          <Label htmlFor="persona-goal" className="text-xs font-semibold uppercase tracking-wide">
-            创作目标
-          </Label>
-          <Input
-            id="persona-goal"
-            value={goal}
-            onChange={(event) => setGoal(event.target.value)}
-            placeholder="例如：适用于抖音脚本、能带动粉丝互动"
+            {/* 左右分栏布局 - 在同一个 Card 内 */}
+            <Card className="h-[calc(100vh-280px)] min-h-[600px]">
+                <CardContent className="h-full p-0">
+                    <div className="flex h-full gap-4">
+                        {/* 左侧：聊天区 - 占据更多空间 */}
+                        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                <PersonaChatArea
+                    messages={messages}
+                    status={normalizedStatus}
+                    error={error ?? null}
+                    completion={completion}
+                    isGeneratingPersona={isGeneratingPersona}
+                    handleSubmitAnswer={handleSubmitAnswer}
+                    resetChat={resetChat}
+                    stop={stop}
+                    onPdfUpload={handlePdfUpload}
+                    pdfUploading={pdfUploading}
+                    pdfProgress={pdfProgress}
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={handleGenerate} disabled={disableGenerate} className="min-w-[160px]">
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            {isLoading ? "生成中..." : "生成人设 Markdown"}
-          </Button>
-          {isLoading && (
-            <Button variant="outline" type="button" onClick={stop}>
-              <StopCircle className="mr-2 h-4 w-4" />
-              停止
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setBrief(EXAMPLE_BRIEF)}
-          >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            使用示例
-          </Button>
+                        {/* 右侧：实时 Persona 面板 - 宽度较小 */}
+                        <div className="w-80 flex-shrink-0 border-l pl-4 h-full overflow-hidden">
+                            <PersonaLivePanel 
+                                data={livePersonaData} 
+                                isLoading={status === "streaming" || isGeneratingPersona}
+                            />
+                        </div>
         </div>
+                </CardContent>
+            </Card>
 
-        {error && (
-          <p className="text-xs text-rose-500">生成失败：{error.message}</p>
-        )}
-
+            {/* 保存提示和表单 */}
         {saveMessage && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-800">
-            {saveMessage}
+                    ✅ {saveMessage}
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <div className="flex items-center justify-between text-[11px] uppercase text-muted-foreground">
-              <span>Markdown 流</span>
-              <span>{completion.length} chars</span>
-            </div>
-            <div className="mt-2 h-80 rounded-xl border bg-muted/40 p-3 font-mono text-xs leading-relaxed text-muted-foreground overflow-auto">
-              {completion ? completion : "等待生成或粘贴一段 Markdown 来解析..."}
-            </div>
-          </div>
-          <div>
-            <Label className="text-[11px] uppercase text-muted-foreground">解析人设 Preview</Label>
-            <PersonaPreviewCard isLoading={isLoading} persona={preview} />
-          </div>
-        </div>
-
         {showSavePrompt && finalPersona && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-sm">
-            <p className="font-medium">🎉 已流式生成完毕，要保存到数据库吗？</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              点击「去保存」会打开一个可编辑表单，允许你修改名称、领域、风格等基础字段。
+                <Card>
+                    <CardContent className="p-4">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                            <p className="font-medium text-amber-800">🎉 人设生成完毕！</p>
+                            <p className="mt-1 text-sm text-amber-700">
+                                我已经帮你生成了专属KOS人设，是否保存到数据库？
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" onClick={handleSaveDecision}>
+                                <Button size="sm" onClick={handleSaveDecision} className="bg-amber-600 hover:bg-amber-700">
                 <Save className="mr-1.5 h-4 w-4" />
-                去保存
+                                    保存人设
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setShowSavePrompt(false)}
               >
-                稍后再说
+                                    稍后保存
               </Button>
             </div>
           </div>
+                    </CardContent>
+                </Card>
         )}
 
         {showEditForm && finalPersona && (
+                <Card>
+                    <CardContent className="p-4">
           <PersonaSaveForm
             persona={finalPersona}
             onSuccess={handleSaved}
             onCancel={() => setShowEditForm(false)}
           />
-        )}
       </CardContent>
     </Card>
-  );
-}
-
-function PersonaPreviewCard({
-  persona,
-  isLoading,
-}: {
-  persona: PersonaParseResult | null;
-  isLoading: boolean;
-}) {
-  if (!persona) {
-    return (
-      <div className="mt-2 flex h-80 items-center justify-center rounded-xl border border-dashed text-xs text-muted-foreground">
-        {isLoading ? "解析中..." : "等待生成结果"}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-2 flex h-full flex-col gap-4 rounded-xl border bg-background p-4 text-sm">
-      <div>
-        <p className="text-xs uppercase text-muted-foreground">Persona</p>
-        <p className="text-xl font-semibold">{persona.name || "未命名"}</p>
-        <p className="text-sm text-muted-foreground">{persona.tagline}</p>
-      </div>
-
-      {persona.domainTags.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {persona.domainTags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-[11px]">
-              {tag}
-            </Badge>
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-1 text-xs text-muted-foreground">
-        {persona.voice && (
-          <p>
-            <span className="font-semibold text-foreground">Voice：</span>
-            {persona.voice}
-          </p>
-        )}
-        {persona.tone && (
-          <p>
-            <span className="font-semibold text-foreground">Tone：</span>
-            {persona.tone}
-          </p>
-        )}
-        {persona.callToAction && (
-          <p>
-            <span className="font-semibold text-foreground">CTA：</span>
-            {persona.callToAction}
-          </p>
-        )}
-      </div>
-
-      {persona.contentPillars.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Content Pillars</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-            {persona.contentPillars.map((pillar) => (
-              <li key={pillar}>{pillar}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {persona.hooks.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Signature Hooks</p>
-          <div className="mt-1 space-y-1 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-            {persona.hooks.map((hook) => (
-              <p key={hook}>• {hook}</p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {persona.bio && (
-        <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-          {persona.bio}
-        </div>
       )}
     </div>
   );
 }
 
+// 人设保存表单（保持不变）
 function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps) {
   const [state, formAction] = useActionState<ActionState, FormData>(createPersonaAction, {
     ok: false,
@@ -316,20 +557,19 @@ function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps)
     }
   }, [state, onSuccess]);
 
-  const defaultDomain = persona.domainTags.join(", ");
+    const defaultDomain = persona.domainTags?.join(", ") || "";
   const defaultStyle = persona.voice || persona.tone || persona.style || "";
-  const defaultContentPillars = persona.contentPillars.join("\n");
-  const defaultHooks = persona.hooks.join("\n");
-  const defaultReminders = persona.reminders.join("\n");
+    const defaultContentPillars = persona.contentPillars?.join("\n") || "";
+    const defaultHooks = persona.hooks?.join("\n") || "";
+    const defaultReminders = persona.reminders?.join("\n") || "";
 
   return (
     <div className="space-y-3 rounded-xl border border-dashed bg-muted/30 p-4">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <Pencil className="h-4 w-4" />
-        修改 & 落库
+                完善人设信息并保存
       </div>
       <form action={formAction} className="grid gap-3 sm:grid-cols-2">
-        {/* 基础信息 */}
         <div className="sm:col-span-1">
           <Label htmlFor="persona-name" className="text-xs">人设名称</Label>
           <Input id="persona-name" name="name" defaultValue={persona.name} required />
@@ -353,7 +593,6 @@ function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps)
           />
         </div>
 
-        {/* 受众与背景 */}
         <div className="sm:col-span-2">
           <Label htmlFor="persona-audience" className="text-xs">目标受众</Label>
           <Input
@@ -374,7 +613,6 @@ function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps)
           />
         </div>
 
-        {/* 表达风格 */}
         <div className="sm:col-span-1">
           <Label htmlFor="persona-voice" className="text-xs">Voice（表达声音）</Label>
           <Input
@@ -404,7 +642,6 @@ function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps)
           />
         </div>
 
-        {/* 内容支柱 */}
         <div className="sm:col-span-2">
           <Label htmlFor="persona-contentPillars" className="text-xs">内容支柱（每行一个）</Label>
           <Textarea
@@ -416,7 +653,6 @@ function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps)
           />
         </div>
 
-        {/* 签名钩子 */}
         <div className="sm:col-span-2">
           <Label htmlFor="persona-hooks" className="text-xs">签名钩子（每行一个）</Label>
           <Textarea
@@ -428,7 +664,6 @@ function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps)
           />
         </div>
 
-        {/* 提醒事项 */}
         <div className="sm:col-span-2">
           <Label htmlFor="persona-reminders" className="text-xs">提醒事项（每行一个）</Label>
           <Textarea
@@ -440,7 +675,6 @@ function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps)
           />
         </div>
 
-        {/* CTA 和 Bio */}
         <div className="sm:col-span-2">
           <Label htmlFor="persona-callToAction" className="text-xs">行动号召（CTA）</Label>
           <Input
