@@ -16,6 +16,7 @@ import { PersonaChatArea } from "./persona-chat-area";
 import { PersonaLivePanel, type LivePersonaData } from "./persona-live-panel";
 import { extractPersonaFromMessages } from "@/lib/persona-extractor";
 import { DefaultChatTransport } from "ai";
+import { parsePdfToText } from "@/lib/resume-parser";
 
 // 固定提问列表（口语化）
 const QUESTIONS = [
@@ -33,7 +34,6 @@ type PersonaSaveFormProps = {
 };
 
 export function PersonaGenerator() {
-    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [preview, setPreview] = useState<PersonaParseResult | null>(null);
     const [finalPersona, setFinalPersona] = useState<PersonaParseResult | null>(null);
     const [showSavePrompt, setShowSavePrompt] = useState(false);
@@ -48,6 +48,9 @@ export function PersonaGenerator() {
     });
     const lastPreviewRef = useRef<PersonaParseResult | null>(null);
     const isFirstLoad = useRef(true); // 标记是否首次加载
+    const [pdfUploading, setPdfUploading] = useState(false);
+    const [pdfProgress, setPdfProgress] = useState<{ stage: string; progress: number } | undefined>();
+    const [generationMode, setGenerationMode] = useState<"chat" | "pdf" | null>(null); // 区分生成模式
 
     const {
         messages,
@@ -78,9 +81,13 @@ export function PersonaGenerator() {
         }
     }, [setMessages]);
 
-    // 修复：正确解析SSE流式响应
+    // 修复：正确解析SSE流式响应（仅对话模式）
     useEffect(() => {
-        if (!isGeneratingPersona) return;
+        // 只在对话模式下执行，PDF 模式由 handlePdfUpload 处理
+        if (!isGeneratingPersona || generationMode !== "chat") return;
+        
+        // 检查是否有消息（对话模式必须有消息）
+        if (!messages || messages.length === 0) return;
 
         const fetchPersona = async () => {
             try {
@@ -163,11 +170,12 @@ export function PersonaGenerator() {
                 setCompletion("❌ 生成人设失败，请点击重新开始重试");
             } finally {
                 setIsGeneratingPersona(false);
+                setGenerationMode(null);
             }
         };
 
         fetchPersona();
-    }, [isGeneratingPersona, messages]);
+    }, [isGeneratingPersona, messages, generationMode]);
 
     // 从对话中实时提取 Persona 信息
     useEffect(() => {
@@ -220,15 +228,13 @@ export function PersonaGenerator() {
         await sendMessage({ parts: [{ type: "text", text: trimmedInput }] });
 
         if (answeredCount + 1 >= QUESTIONS.length) {
+            setGenerationMode("chat");
             setIsGeneratingPersona(true);
         }
-
-        setCurrentQuestionIndex((prev) => Math.min(prev + 1, QUESTIONS.length));
     };
 
     // 重置对话（更新重置逻辑，确保重新设置初始消息）
     const resetChat = async () => {
-        setCurrentQuestionIndex(0);
         setCompletion("");
         setPreview(null);
         setFinalPersona(null);
@@ -236,6 +242,7 @@ export function PersonaGenerator() {
         setShowEditForm(false);
         setSaveMessage(null);
         setIsGeneratingPersona(false);
+        setGenerationMode(null);
         setLivePersonaData({
             domainTags: [],
             contentPillars: [],
@@ -263,6 +270,123 @@ export function PersonaGenerator() {
         setSaveMessage(message ?? "人设已保存成功！");
         setShowEditForm(false);
         setShowSavePrompt(false);
+    };
+
+    // 处理 PDF 上传和解析
+    const handlePdfUpload = async (file: File) => {
+        setPdfUploading(true);
+        setPdfProgress({ stage: "开始解析...", progress: 0 });
+        setGenerationMode("pdf"); // 标记为 PDF 模式，避免 useEffect 干扰
+
+        try {
+            // 1. 提取 PDF 文字（PDF转图片 + OCR）
+            const extractedText = await parsePdfToText(file, (stage, progress) => {
+                setPdfProgress({ stage, progress });
+            });
+
+            console.log(`PDF 解析完成，提取了 ${extractedText.length} 个字符`);
+            
+            // 检查提取的文字是否为空
+            if (!extractedText || extractedText.trim().length === 0) {
+                throw new Error("PDF 文字提取失败，未能提取到任何文字内容。请检查 PDF 文件是否清晰。");
+            }
+
+            // 显示提取的文字预览（前 200 字符）
+            console.log("提取的文字预览:", extractedText.substring(0, 200));
+
+            // 2. 直接使用提取的文字生成人设
+            setIsGeneratingPersona(true);
+            setCompletion("");
+            setPdfProgress({ stage: "正在生成人设...", progress: 0.95 });
+
+            const generateResponse = await fetch("/api/personas/generate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    brief: extractedText,
+                    goal: "基于上传的PDF内容，生成一个可直接用于 KOS dashboard 的人设模板，并突出互动性。",
+                }),
+            });
+
+            if (!generateResponse.ok) {
+                const errorData = await generateResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || "生成人设失败");
+            }
+
+            if (!generateResponse.body) {
+                throw new Error("无响应内容");
+            }
+
+            // 3. 流式接收生成结果
+            const reader = generateResponse.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = "";
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+
+                    if (line.startsWith("data: ")) {
+                        const dataStr = line.slice(6);
+                        if (dataStr === "[DONE]") continue;
+
+                        try {
+                            const data = JSON.parse(dataStr);
+                            if (data.type === "text-delta" && data.delta) {
+                                fullText += data.delta;
+                                setCompletion(fullText);
+                            }
+                        } catch (e) {
+                            console.error("解析SSE数据失败:", e);
+                        }
+                    }
+                }
+            }
+
+            // 处理最后一块数据
+            if (buffer) {
+                if (buffer.startsWith("data: ")) {
+                    const dataStr = buffer.slice(6);
+                    if (dataStr !== "[DONE]") {
+                        try {
+                            const data = JSON.parse(dataStr);
+                            if (data.type === "text-delta" && data.delta) {
+                                fullText += data.delta;
+                                setCompletion(fullText);
+                            }
+                        } catch (e) {
+                            console.error("解析最后一块SSE数据失败:", e);
+                        }
+                    }
+                }
+            }
+
+            // 4. 解析并显示结果
+            const parsed = parsePersonaMarkdown(fullText);
+            if (parsed) {
+                setFinalPersona(parsed);
+                setShowSavePrompt(true);
+            }
+        } catch (err) {
+            console.error("PDF 处理错误：", err);
+            const errorMessage = err instanceof Error ? err.message : "PDF 处理失败，请重试";
+            alert(errorMessage);
+        } finally {
+            setPdfUploading(false);
+            setPdfProgress(undefined);
+            setIsGeneratingPersona(false);
+            setGenerationMode(null);
+        }
     };
 
     // 转换 status 类型以匹配 PersonaChatAreaProps
@@ -313,6 +437,9 @@ export function PersonaGenerator() {
                     handleSubmitAnswer={handleSubmitAnswer}
                     resetChat={resetChat}
                     stop={stop}
+                    onPdfUpload={handlePdfUpload}
+                    pdfUploading={pdfUploading}
+                    pdfProgress={pdfProgress}
                 />
                         </div>
 

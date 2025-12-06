@@ -28,8 +28,22 @@ export async function POST(req: Request) {
         }
 
         // 过滤用户消息，统计已回答数量
-        const userMessages = messages.filter(m => m.role === "user");
+        // 注意：UIMessage 使用 parts 数组格式
+        const userMessages = messages.filter(m => {
+            if (m.role !== "user") return false;
+            // 提取 parts 中的文本内容
+            if (m.parts && Array.isArray(m.parts)) {
+                const text = m.parts
+                    .filter((part: any) => part.type === "text")
+                    .map((part: any) => part.text)
+                    .join("");
+                return text.trim().length > 0;
+            }
+            return false;
+        });
         const answeredCount = userMessages.length;
+        
+        console.log(`[Chat API] 用户已回答 ${answeredCount} 个问题，共 ${PRESET_QUESTIONS.length} 个问题`);
 
         // --- 1. 还有问题未回答：返回下一个预设问题 ---
         if (answeredCount < PRESET_QUESTIONS.length) {
