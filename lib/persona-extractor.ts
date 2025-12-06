@@ -11,9 +11,8 @@ export function extractPersonaFromMessages(messages: UIMessage[]): LivePersonaDa
     hooks: [],
   };
 
-  // 合并所有消息文本（优先从用户消息中提取）
+  // 只从用户消息中提取，避免从 AI 问题中提取错误信息
   const userMessages = messages.filter((msg) => msg.role === "user");
-  const assistantMessages = messages.filter((msg) => msg.role === "assistant");
   
   const userText = userMessages
     .map((msg) => {
@@ -24,17 +23,8 @@ export function extractPersonaFromMessages(messages: UIMessage[]): LivePersonaDa
     })
     .join(" ");
   
-  const allText = messages
-    .map((msg) => {
-      return msg.parts
-        .filter((part) => part.type === "text")
-        .map((part) => part.text)
-        .join(" ");
-    })
-    .join(" ");
-  
-  // 优先从用户消息中提取，如果没有则从全部消息中提取
-  const textToAnalyze = userText || allText;
+  // 只使用用户消息文本，不包含 AI 的问题
+  const textToAnalyze = userText;
 
   if (!textToAnalyze.trim()) {
     return data;
@@ -154,12 +144,24 @@ export function extractPersonaFromMessages(messages: UIMessage[]): LivePersonaDa
     }
   }
 
-  // 如果没有找到名称，尝试从品牌名提取
+  // 如果没有找到名称，尝试从品牌名提取（但要避免提取到无意义的前几个字符）
   if (!data.name) {
-    const brandMatch = textToAnalyze.match(/(OnBeat|品牌|公司)([^，。\n]{0,10})/i);
+    // 只在前100个字符中查找，避免匹配到长文本中的无关内容
+    const shortText = textToAnalyze.substring(0, 100);
+    const brandMatch = shortText.match(/(OnBeat|品牌|公司账号|个人账号)([^，。\n\s\(（]{0,15})/i);
     if (brandMatch) {
-      data.name = brandMatch[0].trim();
+      const extracted = brandMatch[0].trim();
+      // 确保提取的内容有意义（不包含特殊字符、括号等）
+      if (extracted.length >= 2 && extracted.length <= 20 && !extracted.match(/[\(（\)）]/)) {
+        data.name = extracted;
+      }
     }
+  }
+  
+  // 如果还是没有找到，且文本太长，不要提取前几个字符作为名称
+  if (!data.name && textToAnalyze.length > 200) {
+    // 对于长文本，不自动提取名称，避免提取到无意义的前几个字符
+    data.name = undefined;
   }
 
   // 提取标签/口号
