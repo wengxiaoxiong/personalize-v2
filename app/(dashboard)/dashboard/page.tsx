@@ -1,10 +1,10 @@
 "use client";
 
-import { DashboardHeader } from "@/app/dashboard/components/dashboard-header";
-import { PersonasSection } from "@/app/dashboard/personas/components/personas-section";
-import { PostsSection } from "@/app/dashboard/components/posts-section";
-import { AIGenerator } from "@/app/dashboard/components/ai-generator";
-import { RecommendationsSection } from "@/app/dashboard/components/recommendations-section";
+import { DashboardHeader } from "@/app/(dashboard)/components/dashboard-header";
+import { PersonasSection } from "@/app/(dashboard)/personas/components/personas-section";
+import { PostsSection } from "@/app/(dashboard)/posts/components/posts-section";
+import { AIGenerator } from "@/app/(dashboard)/generate/components/ai-generator";
+import { RecommendationsSection } from "@/app/(dashboard)/generate/components/recommendations-section";
 
 export default function DashboardPage() {
   return (
@@ -23,3 +23,4 @@ export default function DashboardPage() {
     </>
   );
 }
+

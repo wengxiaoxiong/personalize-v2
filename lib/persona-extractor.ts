@@ -1,5 +1,5 @@
 import type { UIMessage } from "@ai-sdk/react";
-import type { LivePersonaData } from "@/app/dashboard/personas/components/persona-live-panel";
+import type { LivePersonaData } from "@/app/(dashboard)/personas/components/persona-live-panel";
 
 /**
  * 从对话消息中提取 Persona 信息

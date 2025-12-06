@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Home, PenLine, Upload, Sparkles } from "lucide-react";
+import { ArrowLeft, Home, PenLine, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function MaskIcon() {
@@ -27,8 +27,8 @@ function MaskIcon() {
 
 const navItems = [
   { href: "/dashboard", label: "工作台", icon: Home },
-  { href: "/dashboard/personas", label: "KOS 人设库", icon: MaskIcon },
-  { href: "/dashboard/generate", label: "内容生成", icon: PenLine },
+  { href: "/personas", label: "KOS 人设库", icon: MaskIcon },
+  { href: "/generate", label: "内容生成", icon: PenLine },
 ];
 
 export function DashboardSidebar() {

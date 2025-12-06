@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { DashboardSidebar } from "@/app/dashboard/components/dashboard-sidebar";
+import { DashboardSidebar } from "@/app/(dashboard)/components/dashboard-sidebar";
 import { DashboardProvider } from "@/components/providers/dashboard-provider";
 import { getDashboardSnapshot, getSessionUser } from "../actions";
+
 
 export default async function DashboardLayout({
   children,
