@@ -1,0 +1,92 @@
+// app/api/chat/route.ts
+import { deepseek } from "@ai-sdk/deepseek";
+import { streamText, UIMessage, convertToModelMessages } from "ai";
+import { NextResponse } from "next/server";
+
+export const maxDuration = 30;
+
+// 与前端完全一致的5个预设问题
+const PRESET_QUESTIONS = [
+    "嗨～ 先跟我说说你的账号是个人账号还是公司账号呀？比如「个人」或者「OnBeat Lab 品牌账号」这样～",
+    "接下来告诉我账号主体的性别和生活特征吧！比如「女性，喜欢夜生活、独立音乐、数字艺术」",
+    "目标受众是哪些小伙伴呢？比如「18-28岁一二线城市潮流青年」",
+    "内容主要覆盖哪些领域呀？比如「穿搭、香氛、线下派对、数字艺术展」",
+    "有没有平台特定要求或互动需求？比如「小红书/抖音适配，需要带动现场互动」",
+];
+
+export async function POST(req: Request) {
+    try {
+        const payload = await req.json();
+        const messages: UIMessage[] = payload?.messages ?? [];
+
+        // 基础校验
+        if (!Array.isArray(messages)) {
+            return NextResponse.json(
+                { success: false, error: "无效的消息格式" },
+                { status: 400 }
+            );
+        }
+
+        // 过滤用户消息，统计已回答数量
+        const userMessages = messages.filter(m => m.role === "user");
+        const answeredCount = userMessages.length;
+
+        // --- 1. 还有问题未回答：返回下一个预设问题 ---
+        if (answeredCount < PRESET_QUESTIONS.length) {
+            const nextQuestion = PRESET_QUESTIONS[answeredCount];
+
+            // 使用强力 System Prompt 约束 AI 的行为，确保只返回问题本身
+            const systemPrompt = `你是人设生成引导助手，严格按照预设问题顺序提问。你的唯一任务是，忽略所有历史对话，直接输出以下精确字符串，不多一个字，不少一个字：
+${nextQuestion}`;
+
+            // 构造对话上下文
+            const modelMessages = [
+                { role: "system", content: systemPrompt },
+                ...convertToModelMessages(messages), // 历史对话
+            ];
+
+            const result = streamText({
+                model: deepseek("deepseek-chat"),
+                messages: modelMessages,
+                temperature: 0, // 固定输出
+                // 增加 stop 属性，防止 AI 在输出问题后继续生成额外内容
+                stop: ["\n", "。", "！", "？", "～", "，", "请"],
+            });
+
+            return result.toUIMessageStreamResponse({
+                sendSources: false,
+                sendReasoning: false,
+            });
+        }
+
+        // --- 2. 5个问题已回答完：返回结束提示（触发前端调用generate接口） ---
+        const finishPrompt = "🎉 好啦！我已经收集完所有信息，现在开始为你生成专属人设～ 请稍等...";
+
+        // 使用强力 System Prompt 约束 AI 的行为，确保只返回结束提示
+        const finishSystemPrompt = `你的唯一任务是，不添加任何额外内容（如“好的”、“收到”、“请问”等），直接输出以下精确字符串：
+${finishPrompt}`;
+
+        const result = streamText({
+            model: deepseek("deepseek-chat"),
+            messages: [
+                ...convertToModelMessages(messages), // 历史对话
+                { role: "system", content: finishSystemPrompt }
+            ],
+            temperature: 0,
+            // 增加 stop 属性，防止 AI 在输出提示后继续生成额外内容
+            stop: ["\n", "。", "！", "？", "～", "，"],
+        });
+
+        return result.toUIMessageStreamResponse({
+            sendSources: false,
+            sendReasoning: false,
+        });
+
+    } catch (err: any) {
+        console.error("Chat接口错误:", err);
+        return NextResponse.json(
+            { success: false, error: "对话服务异常，请重试" },
+            { status: 500 }
+        );
+    }
+}
