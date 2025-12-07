@@ -5,7 +5,6 @@
 ## 模块概览
 - Hooks：  
   - `useAgentChat`：`useChat` 的轻包装，统一 `model/api/reset`。  
-  - `useAgentTask`：包装 `useCompletion` 或任意自定义 async 任务，提供 `start/stop/setResult/task.status`.  
   - `useToolSignal`：监听工具 UI Part 并去重，触发回调。  
   - `useAgentOrchestrator`：基于 trigger/action 的轻量编排，支持 `tool/pattern/manual`。  
   - `usePaneState`：侧栏可见性与桌面判断。  
@@ -18,20 +17,23 @@
 
 ## 快速上手（新业务）
 1) 聊天流：`const chat = useAgentChat({ api: "/api/chat", model: "xxx" })`。  
-2) 任务：`const personaTask = useAgentTask({ api: "/api/your-endpoint", onFinish, onError })`。  
-3) 触发：`useToolSignal({ messages: chat.messages, toolName: "finalizeX", onMatch: () => personaTask.start("", { body }) })`；或用 `useAgentOrchestrator` 配置多条 trigger。  
+2) 任务：直接用 `useCompletion`（`@ai-sdk/react`）完成流式生成，并在 `onFinish/onError` 写业务逻辑。  
+3) 触发：`useToolSignal({ messages: chat.messages, toolName: "finalizeX", onMatch: () => complete("", { body }) })`；或用 `useAgentOrchestrator` 配置多条 trigger。  
 4) UI：用 `AgentConversation` 渲染消息，注入业务专属 renderer（如选择题/富卡片）；用 `AgentSidecar` 放预览/日志/检索结果。  
 5) 上传解析：`useFileIngestion({ parser, acceptTypes, maxSizeMb })`，将解析后的文本追加到 chat。
 
 ### 参考代码（最小组合）
 ```tsx
 const chat = useAgentChat({ api: "/api/chat", model: "deepseek/deepseek-chat" });
-const task = useAgentTask({ api: "/api/agents/generate", onFinish: handleFinish });
+const { completion, complete, isLoading, error, stop } = useCompletion({
+  api: "/api/agents/generate",
+  onFinish: (_prompt, text) => handleFinish(text ?? ""),
+});
 
 useToolSignal({
   messages: chat.messages,
   toolName: "finalizeSomething",
-  onMatch: () => task.start("", { body: buildPayload(chat.messages) }),
+  onMatch: () => complete("", { body: buildPayload(chat.messages) }),
 });
 
 return (
@@ -50,7 +52,7 @@ return (
 ## Persona 作为示例
 - Persona 页面现在用 Agent Kit 组装：  
   - 聊天：`useAgentChat` (`/api/chat` + deepseek 模型)。  
-  - 生成：`useAgentTask` (`/api/personas/generate`)，工具信号 `finalizePersona` 触发。  
+  - 生成：`useCompletion` (`/api/personas/generate`)，工具信号 `finalizePersona` 触发。  
   - 上传：`useFileIngestion` + `parsePdfToText`，结果注入 chat。  
   - UI：`AgentConversation` + Persona 的选择题 renderer，`AgentSidecar` 承载预览。  
   - 适配层：`modules/agent/adapters/persona.ts` 封装 payload/解析器/关键词。

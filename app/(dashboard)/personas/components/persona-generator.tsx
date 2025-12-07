@@ -19,7 +19,6 @@ import { MessageResponse } from "@/components/ai-elements/message";
 import { AgentConversation } from "@/modules/agent/ui/agent-conversation";
 import { AgentSidecar } from "@/modules/agent/ui/agent-sidecar";
 import { useAgentChat } from "@/modules/agent/hooks/use-agent-chat";
-import { useAgentTask } from "@/modules/agent/hooks/use-agent-task";
 import { usePaneState } from "@/modules/agent/hooks/use-pane-state";
 import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
 import { useFileIngestion } from "@/modules/agent/hooks/use-file-ingestion";
@@ -32,6 +31,7 @@ import {
   buildPersonaPayload,
   parsePersonaResult,
 } from "@/modules/agent/adapters/persona";
+import { useCompletion } from "@ai-sdk/react";
 import { PersonaGenerationPreview } from "./persona-generation-preview";
 import { parsePdfToText } from "@/lib/resume-parser";
 import { PersonaSaveForm } from "./persona-save-form";
@@ -67,27 +67,27 @@ export function PersonaGenerator() {
   });
 
   const {
-    task: personaTask,
-    start: startPersona,
+    completion: personaCompletion,
+    complete: startPersona,
     stop: stopPersona,
-    setResult: setPersonaResult,
-  } = useAgentTask<string>({
+    isLoading: personaLoading,
+    error: personaError,
+    setCompletion: setPersonaResult,
+  } = useCompletion({
     api: "/api/personas/generate",
     streamProtocol: "text",
-    throttleInterval: 50,
+    experimental_throttle: 50,
     onError: (err) => {
       console.error("生成人设错误：", err);
       personaGenerationTriggered.current = false;
     },
-    onFinish: (text) => {
-      const persona = parsePersonaResult(text);
+    onFinish: (_prompt, text) => {
+      const persona = parsePersonaResult(text ?? "");
       setFinalPersona(persona);
     },
   });
 
-  const personaCompletion = personaTask.result ?? "";
-  const personaLoading = personaTask.status === "running";
-  const personaError = personaTask.error;
+  const personaCompletionText = personaCompletion ?? "";
 
   useEffect(() => {
     if (personaError) {
@@ -279,16 +279,16 @@ export function PersonaGenerator() {
   };
 
   const disableSubmit = status === "streaming" || personaLoading || pdfUploading;
-  const parsedPersona = useMemo(() => parsePersonaMarkdown(personaCompletion), [personaCompletion]);
+  const parsedPersona = useMemo(() => parsePersonaMarkdown(personaCompletionText), [personaCompletionText]);
 
   const openSaveDialog = useCallback(() => {
     const persona =
-      parsedPersona ?? finalPersona ?? (personaCompletion ? buildFallbackPersona(personaCompletion) : null);
+      parsedPersona ?? finalPersona ?? (personaCompletionText ? buildFallbackPersona(personaCompletionText) : null);
 
     if (!persona) return;
     setFinalPersona(persona);
     setShowSaveDialog(true);
-  }, [finalPersona, parsedPersona, personaCompletion]);
+  }, [finalPersona, parsedPersona, personaCompletionText]);
 
   const selectionRenderer = useCallback<AgentPartRenderer>(
     ({ part, message }) => {
@@ -447,10 +447,10 @@ export function PersonaGenerator() {
         className="h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background p-4 overflow-hidden"
       >
         <PersonaGenerationPreview
-          markdown={personaCompletion}
+          markdown={personaCompletionText}
           isGenerating={personaLoading}
           onSave={openSaveDialog}
-          canSave={Boolean(parsedPersona || personaCompletion)}
+          canSave={Boolean(parsedPersona || personaCompletionText)}
         />
       </AgentSidecar>
     </div>

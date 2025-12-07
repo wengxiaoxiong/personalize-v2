@@ -2,6 +2,38 @@
 
 基于当前项目的实际实现，总结 `useCompletion` 的前后端开发规范和最佳实践。
 
+## 0. Persona 场景快速实践（流式 Markdown + 解析）
+
+- Hook 示例  
+  ```tsx
+  import { useCompletion } from "@ai-sdk/react";
+  import { buildPersonaPayload, parsePersonaResult } from "@/modules/agent/adapters/persona";
+
+  const {
+    completion: personaMarkdown,
+    complete: runPersona,
+    stop,
+    isLoading,
+    error,
+    setCompletion,
+  } = useCompletion({
+    api: "/api/personas/generate",
+    streamProtocol: "text",
+    experimental_throttle: 50,
+    onFinish: (_prompt, text) => setFinalPersona(parsePersonaResult(text ?? "")),
+    onError: (err) => console.error("生成人设失败", err),
+  });
+
+  // 由工具信号或关键词触发
+  useToolSignal({
+    messages,
+    toolName: PERSONA_TOOL_NAME,
+    onMatch: () => runPersona("", { body: buildPersonaPayload(messages) }),
+  });
+  ```
+- 渲染：`personaMarkdown` 直接流式传给预览组件，失败时可用 `buildFallbackPersona` 兜底。
+- UI：禁用输入 `isLoading`，用 `stop` 提供“停止生成”按钮。
+
 ## 1. 前端 useCompletion 使用规范
 
 ### 1.1 基本配置结构

@@ -13,7 +13,7 @@
 
 ## 主要交互流程
 1. **初始化**：首次输入/上传后启动对话，自动下发 `QUESTIONS[0]` 作为引导。
-2. **聊天与工具**：`useAgentChat` 负责消息流；`useAgentTask` 负责人设生成；`useToolSignal` 监听工具 `finalizePersona` 并触发生成。
+2. **聊天与工具**：`useAgentChat` 负责消息流；`useCompletion` 负责人设生成；`useToolSignal` 监听工具 `finalizePersona` 并触发生成。
 3. **PDF 支持**：`parsePdfToText` 解析文件，消息中以 `[已上传简历/PDF]` 前缀带入上下文，并在 payload 中附带补充需求。
 4. **生成预览与保存**：流式生成实时预览；完成后弹出 `PersonaSaveForm` 保存到数据库，失败时用 Markdown 兜底。
 5. **重置**：`resetChat` 统一清理 `useChat`/`useCompletion` 状态、选项、多选答案、上传状态。
