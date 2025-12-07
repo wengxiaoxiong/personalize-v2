@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useChat, useCompletion } from "@ai-sdk/react";
-import { isToolUIPart, getToolName } from "ai";
+import type { ToolUIPart } from "ai";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { parsePersonaMarkdown, type PersonaParseResult } from "@/lib/persona-parser";
-import { PersonaGenerationPreview } from "./persona-generation-preview";
-import { DefaultChatTransport } from "ai";
-import { parsePdfToText } from "@/lib/resume-parser";
 import {
   PromptInput,
   PromptInputBody,
@@ -27,64 +23,77 @@ import {
   PromptInputSubmit,
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
-import { PersonaConversation } from "./persona-conversation";
+import { MessageResponse } from "@/components/ai-elements/message";
+import { AgentConversation } from "@/modules/agent/ui/agent-conversation";
+import { AgentSidecar } from "@/modules/agent/ui/agent-sidecar";
+import { useAgentChat } from "@/modules/agent/hooks/use-agent-chat";
+import { useAgentTask } from "@/modules/agent/hooks/use-agent-task";
+import { usePaneState } from "@/modules/agent/hooks/use-pane-state";
+import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
+import { useFileIngestion } from "@/modules/agent/hooks/use-file-ingestion";
+import type { AgentPartRenderer } from "@/modules/agent/types/agent";
+import {
+  PERSONA_GENERATE_KEYWORDS,
+  PERSONA_TOOL_NAME,
+  buildPersonaPayload,
+  parsePersonaResult,
+} from "@/modules/agent/adapters/persona";
+import { PersonaGenerationPreview } from "./persona-generation-preview";
+import { parsePdfToText } from "@/lib/resume-parser";
 import { PersonaSaveForm } from "./persona-save-form";
 import { PdfUploadControl } from "./persona-pdf-upload";
 import { QUESTIONS, buildFallbackPersona } from "./persona-generator-helpers";
+import { extractSelectionQuestions } from "./persona-generator-helpers";
+import { SelectionQuestionCard } from "./selection-question-card";
+import { ToolCallCard } from "./tool-call-card";
 
 export function PersonaGenerator() {
   const [finalPersona, setFinalPersona] = useState<PersonaParseResult | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [pdfUploading, setPdfUploading] = useState(false);
-  const [pdfProgress, setPdfProgress] = useState<{ stage: string; progress: number } | undefined>();
   const personaGenerationTriggered = useRef(false);
-  const processedToolCallIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState("");
-  const [showPreview, setShowPreview] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const pane = usePaneState(false);
 
-  useEffect(() => {
-    const checkDesktop = () => {
-      setIsDesktop(window.innerWidth >= 1024);
-    };
-    checkDesktop();
-    window.addEventListener("resize", checkDesktop);
-    return () => window.removeEventListener("resize", checkDesktop);
-  }, []);
+  const { ingest, uploading: pdfUploading, progress: pdfProgress } = useFileIngestion({
+    parser: parsePdfToText,
+    acceptTypes: ["application/pdf"],
+    maxSizeMb: 10,
+    onError: (err) => console.error(err),
+  });
 
-  const { messages, sendMessage, status, error, setMessages } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-    }),
+  const { messages, sendMessage, status, error, setMessages, reset: resetChatState } = useAgentChat({
+    api: "/api/chat",
+    model: "deepseek/deepseek-chat",
   });
 
   const {
-    completion: personaCompletion,
-    complete: generatePersona,
+    task: personaTask,
+    start: startPersona,
     stop: stopPersona,
-    isLoading: personaLoading,
-    error: personaError,
-    setCompletion: setPersonaCompletion,
-  } = useCompletion({
+    setResult: setPersonaResult,
+  } = useAgentTask<string>({
     api: "/api/personas/generate",
     streamProtocol: "text",
-    experimental_throttle: 50,
+    throttleInterval: 50,
     onError: (err) => {
       console.error("生成人设错误：", err);
       personaGenerationTriggered.current = false;
     },
     onFinish: (text) => {
-      const parsed = parsePersonaMarkdown(text) ?? parsedPersona;
-      const persona = parsed ?? buildFallbackPersona(text);
+      const persona = parsePersonaResult(text);
       setFinalPersona(persona);
     },
   });
+
+  const personaCompletion = personaTask.result ?? "";
+  const personaLoading = personaTask.status === "running";
+  const personaError = personaTask.error;
 
   useEffect(() => {
     if (personaError) {
@@ -92,73 +101,22 @@ export function PersonaGenerator() {
     }
   }, [personaError]);
 
-  const buildPersonaPayload = useCallback(() => {
-    const hasPdfContent = messages.some(
-      (msg) =>
-        msg.role === "user" &&
-        msg.parts.some((part) => part.type === "text" && part.text.includes("[已上传简历/PDF]"))
-    );
-
-    if (hasPdfContent) {
-      const pdfMessage = messages.find(
-        (msg) =>
-          msg.role === "user" &&
-          msg.parts.some((part) => part.type === "text" && part.text.includes("[已上传简历/PDF]"))
-      );
-      const userSupplements = messages
-        .filter(
-          (msg) =>
-            msg.role === "user" &&
-            !msg.parts.some((part) => part.type === "text" && part.text.includes("[已上传简历/PDF]"))
-        )
-        .map((msg) =>
-          msg.parts
-            .filter((part) => part.type === "text")
-            .map((part) => part.text)
-            .join("")
-        )
-        .join("\n");
-
-      const pdfText =
-        pdfMessage?.parts
-          .filter((part) => part.type === "text")
-          .map((part) => part.text)
-          .join("")
-          .replace("[已上传简历/PDF]\n\n", "") || "";
-
-      return {
-        brief: pdfText + (userSupplements ? `\n\n用户补充需求：\n${userSupplements}` : ""),
-        goal: "基于上传的PDF内容和用户补充的需求，生成一个可直接用于 KOS dashboard 的人设模板，并突出互动性。",
-      };
-    }
-
-    return {
-      messages: messages.map((msg) => ({
-        role: msg.role,
-        content: msg.parts
-          .filter((part) => part.type === "text")
-          .map((part) => part.text)
-          .join(""),
-      })),
-    };
-  }, [messages]);
-
   const handlePersonaGeneration = useCallback(async () => {
     if (personaGenerationTriggered.current) return;
     personaGenerationTriggered.current = true;
-    setPersonaCompletion("");
+    setPersonaResult("");
     setFinalPersona(null);
-    setShowPreview(true);
+    pane.toggle(true);
 
     try {
-      await generatePersona("", {
-        body: buildPersonaPayload(),
+      await startPersona("", {
+        body: buildPersonaPayload(messages),
       });
     } catch (err) {
       console.error("生成人设错误：", err);
       personaGenerationTriggered.current = false;
     }
-  }, [buildPersonaPayload, generatePersona, setPersonaCompletion]);
+  }, [messages, pane.toggle, setPersonaResult, startPersona]);
 
   const handleOptionToggle = useCallback((option: string) => {
     setSelectedOptions((prev) => {
@@ -213,27 +171,11 @@ export function PersonaGenerator() {
     }
   }, [hasStarted, setMessages]);
 
-  useEffect(() => {
-    if (personaGenerationTriggered.current) return;
-
-    for (const msg of [...messages].reverse()) {
-      if (msg.role !== "assistant" || !msg.parts) continue;
-
-      for (const part of msg.parts) {
-        if (!isToolUIPart(part)) continue;
-
-        const toolName = getToolName(part);
-        if (toolName === "finalizePersona") {
-          const toolCallId = part.toolCallId;
-          if (toolCallId && !processedToolCallIds.current.has(toolCallId)) {
-            processedToolCallIds.current.add(toolCallId);
-            handlePersonaGeneration();
-            return;
-          }
-        }
-      }
-    }
-  }, [messages, handlePersonaGeneration]);
+  useToolSignal({
+    messages,
+    toolName: PERSONA_TOOL_NAME,
+    onMatch: () => handlePersonaGeneration(),
+  });
 
   const handleSubmit = async (message: PromptInputMessage) => {
     const currentInput = message.text || inputValue;
@@ -244,8 +186,7 @@ export function PersonaGenerator() {
       setHasStarted(true);
     }
 
-    const generateKeywords = ["生成人设", "生成", "开始生成", "生成吧", "可以生成了"];
-    const shouldGenerate = generateKeywords.some((keyword) =>
+    const shouldGenerate = PERSONA_GENERATE_KEYWORDS.some((keyword) =>
       trimmedInput.toLowerCase().includes(keyword.toLowerCase())
     );
 
@@ -271,19 +212,19 @@ export function PersonaGenerator() {
   };
 
   const resetChat = async () => {
-    setPersonaCompletion("");
+    setPersonaResult("");
     setFinalPersona(null);
     setShowSaveDialog(false);
     setSaveMessage(null);
-    setShowPreview(false);
+    pane.toggle(false);
     stopPersona();
     personaGenerationTriggered.current = false;
-    processedToolCallIds.current.clear();
     setSelectedOptions([]);
     setInputValue("");
+    setSelectedFile(null);
     setHasStarted(false);
     isFirstLoad.current = true;
-    setMessages([]);
+    resetChatState();
   };
 
   const handleSaved = (message?: string) => {
@@ -299,13 +240,8 @@ export function PersonaGenerator() {
       setHasStarted(true);
     }
 
-    setPdfUploading(true);
-    setPdfProgress({ stage: "开始解析...", progress: 0 });
-
     try {
-      const extractedText = await parsePdfToText(file, (stage, progress) => {
-        setPdfProgress({ stage, progress });
-      });
+      const extractedText = await ingest(file);
 
       if (!extractedText || extractedText.trim().length === 0) {
         throw new Error("PDF 文字提取失败，未能提取到任何文字内容。请检查 PDF 文件是否清晰。");
@@ -323,8 +259,6 @@ export function PersonaGenerator() {
       const errorMessage = err instanceof Error ? err.message : "PDF 处理失败，请重试";
       alert(errorMessage);
     } finally {
-      setPdfUploading(false);
-      setPdfProgress(undefined);
       setSelectedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -361,6 +295,40 @@ export function PersonaGenerator() {
     setFinalPersona(persona);
     setShowSaveDialog(true);
   }, [finalPersona, parsedPersona, personaCompletion]);
+
+  const selectionRenderer = useCallback<AgentPartRenderer>(
+    ({ part, message }) => {
+      if (part.type !== "text" || !part.text) return null;
+      const { cleanText, questions } = extractSelectionQuestions(part.text);
+      if (!questions.length) return null;
+
+      return (
+        <div className="space-y-3">
+          {cleanText && (
+            <MessageResponse
+              className={cn(
+                "max-w-none whitespace-pre-wrap break-words",
+                message.role === "assistant" ? "prose prose-sm" : "text-sm leading-relaxed text-primary-foreground"
+              )}
+            >
+              {cleanText}
+            </MessageResponse>
+          )}
+          {questions.map((question, questionIdx) => (
+            <SelectionQuestionCard
+              key={`${message.id}-question-${questionIdx}`}
+              question={question}
+              selectedOptions={selectedOptions}
+              onSelect={handleOptionToggle}
+            />
+          ))}
+        </div>
+      );
+    },
+    [handleOptionToggle, selectedOptions]
+  );
+
+  const toolRenderer = useCallback((part: ToolUIPart) => <ToolCallCard part={part} />, []);
 
   const renderInitialView = () => (
     <div className="flex items-center justify-center min-h-[calc(100vh-220px)]">
@@ -399,7 +367,7 @@ export function PersonaGenerator() {
     <div
       className={cn("grid gap-4", "lg:transition-[grid-template-columns] lg:duration-500 lg:ease-in-out")}
       style={{
-        gridTemplateColumns: isDesktop ? (showPreview ? "1.15fr 0.85fr" : "1fr 0fr") : "1fr",
+        gridTemplateColumns: pane.isDesktop ? (pane.visible ? "1.15fr 0.85fr" : "1fr 0fr") : "1fr",
       }}
     >
       <div className="flex flex-col h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background">
@@ -423,11 +391,11 @@ export function PersonaGenerator() {
             实时收集回答，颜色对比和换行已优化
           </div>
 
-          <PersonaConversation
+          <AgentConversation
             messages={messages}
             status={status}
-            selectedOptions={selectedOptions}
-            onOptionToggle={handleOptionToggle}
+            renderers={[selectionRenderer]}
+            toolRenderer={toolRenderer}
           />
 
           <div className="space-y-2 shrink-0">
@@ -487,21 +455,17 @@ export function PersonaGenerator() {
         </div>
       </div>
 
-      <div
-        className={cn(
-          "h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background p-4 overflow-hidden transition-opacity duration-500 ease-in-out",
-          showPreview ? "opacity-100" : "opacity-0 pointer-events-none"
-        )}
+      <AgentSidecar
+        visible={pane.visible}
+        className="h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background p-4 overflow-hidden"
       >
-        {showPreview && (
-          <PersonaGenerationPreview
-            markdown={personaCompletion}
-            isGenerating={personaLoading}
-            onSave={openSaveDialog}
-            canSave={Boolean(parsedPersona || personaCompletion)}
-          />
-        )}
-      </div>
+        <PersonaGenerationPreview
+          markdown={personaCompletion}
+          isGenerating={personaLoading}
+          onSave={openSaveDialog}
+          canSave={Boolean(parsedPersona || personaCompletion)}
+        />
+      </AgentSidecar>
     </div>
   );
 

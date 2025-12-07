@@ -3,7 +3,7 @@ import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type PdfUploadControlProps = {
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   pdfUploading: boolean;
   pdfProgress?: { stage: string; progress: number };

@@ -75,8 +75,9 @@ export function PersonaConversation({
                 }
 
                 if (isToolUIPart(part as ToolUIPart)) {
+                  const toolPart = part as ToolUIPart;
                   return (
-                    <ToolCallCard key={part.toolCallId || `${message.id}-tool-${idx}`} part={part as ToolUIPart} />
+                    <ToolCallCard key={toolPart.toolCallId || `${message.id}-tool-${idx}`} part={toolPart} />
                   );
                 }
 

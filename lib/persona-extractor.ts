@@ -1,5 +1,18 @@
 import type { UIMessage } from "@ai-sdk/react";
-import type { LivePersonaData } from "@/app/(dashboard)/personas/components/persona-live-panel";
+
+export type LivePersonaData = {
+  name?: string;
+  tagline?: string;
+  audience?: string;
+  voice?: string;
+  tone?: string;
+  style?: string;
+  background?: string;
+  callToAction?: string;
+  domainTags: string[];
+  contentPillars: string[];
+  hooks: string[];
+};
 
 /**
  * 从对话消息中提取 Persona 信息
@@ -244,4 +257,3 @@ export function extractPersonaFromMessages(messages: UIMessage[]): LivePersonaDa
 
   return data;
 }
-
