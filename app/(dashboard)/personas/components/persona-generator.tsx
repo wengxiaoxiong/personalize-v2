@@ -123,6 +123,7 @@ export function PersonaGenerator() {
   const [inputValue, setInputValue] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
 
   // 检测是否是桌面端
   useEffect(() => {
@@ -295,9 +296,9 @@ export function PersonaGenerator() {
     });
   }, [selectedOptions]);
 
-  // 初始化第一条AI消息
+  // 初始化第一条AI消息（仅在用户开始对话后）
   useEffect(() => {
-    if (isFirstLoad.current) {
+    if (hasStarted && isFirstLoad.current) {
       isFirstLoad.current = false;
       setMessages([
         {
@@ -307,7 +308,7 @@ export function PersonaGenerator() {
         },
       ]);
     }
-  }, [setMessages]);
+  }, [hasStarted, setMessages]);
 
   // 当模型通过工具判断信息足够时触发生成人设
   useEffect(() => {
@@ -340,6 +341,11 @@ export function PersonaGenerator() {
     const currentInput = message.text || inputValue;
     const trimmedInput = currentInput.trim();
     if (!trimmedInput) return;
+
+    // 如果是第一次提交，设置 hasStarted 为 true
+    if (!hasStarted) {
+      setHasStarted(true);
+    }
 
     const generateKeywords = ["生成人设", "生成", "开始生成", "生成吧", "可以生成了"];
     const shouldGenerate = generateKeywords.some(keyword =>
@@ -379,14 +385,10 @@ export function PersonaGenerator() {
     processedToolCallIds.current.clear();
     setSelectedOptions([]);
     setInputValue("");
+    setHasStarted(false);
+    isFirstLoad.current = true;
 
-    setMessages([
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        parts: [{ type: "text", text: QUESTIONS[0] }],
-      },
-    ]);
+    setMessages([]);
   };
 
   // 处理保存成功
@@ -400,6 +402,11 @@ export function PersonaGenerator() {
 
   // 处理 PDF 上传
   const handlePdfUpload = async (file: File) => {
+    // 如果是第一次上传，设置 hasStarted 为 true
+    if (!hasStarted) {
+      setHasStarted(true);
+    }
+
     setPdfUploading(true);
     setPdfProgress({ stage: "开始解析...", progress: 0 });
 
@@ -465,19 +472,78 @@ export function PersonaGenerator() {
 
   return (
     <div className="w-full mx-auto space-y-5">
-      <div 
-        className={cn(
-          "grid gap-4",
-          "lg:transition-[grid-template-columns] lg:duration-500 lg:ease-in-out"
-        )}
-        style={{
-          gridTemplateColumns: isDesktop
-            ? (showPreview ? '1.15fr 0.85fr' : '1fr 0fr')
-            : '1fr',
-        }}
-      >
-        {/* 聊天区 */}
-        <div className="flex flex-col h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background">
+      {!hasStarted ? (
+        /* 初始状态：居中显示输入框和上传按钮 */
+        <div className="flex items-center justify-center min-h-[calc(100vh-220px)]">
+          <div className="w-full max-w-2xl mx-auto space-y-6 px-4">
+            <h2 className="text-2xl md:text-3xl font-semibold text-center text-foreground">
+              开始构建新的KOS人设
+            </h2>
+            
+            <div className="space-y-4">
+              {/* PDF 上传区域 */}
+              <div className="flex items-center justify-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  disabled={pdfUploading}
+                  id="pdf-upload"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={pdfUploading}
+                  className="flex items-center gap-2"
+                >
+                  <FileText className="h-5 w-5" />
+                  {pdfUploading ? "解析中..." : "上传简历/PDF"}
+                </Button>
+                {pdfUploading && pdfProgress && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>{pdfProgress.stage}</span>
+                    <span className="text-primary">{Math.round(pdfProgress.progress * 100)}%</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 输入框 */}
+              <PromptInput onSubmit={handleSubmit} className="rounded-lg border bg-card/80">
+                <PromptInputBody>
+                  <PromptInputTextarea
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    className="min-h-[200px] md:min-h-[240px] text-base"
+                    placeholder="在这里输入你的需求，描述你想要构建的KOS人设..."
+                    disabled={pdfUploading}
+                  />
+                </PromptInputBody>
+                <PromptInputFooter>
+                  <PromptInputSubmit status={status} disabled={pdfUploading || !inputValue.trim()} />
+                </PromptInputFooter>
+              </PromptInput>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* 已开始对话：显示完整的聊天界面 */
+        <div 
+          className={cn(
+            "grid gap-4",
+            "lg:transition-[grid-template-columns] lg:duration-500 lg:ease-in-out"
+          )}
+          style={{
+            gridTemplateColumns: isDesktop
+              ? (showPreview ? '1.15fr 0.85fr' : '1fr 0fr')
+              : '1fr',
+          }}
+        >
+          {/* 聊天区 */}
+          <div className="flex flex-col h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background">
           <div className="flex items-center justify-between px-4 py-3 border-b">
           
             <Button
@@ -668,23 +734,24 @@ export function PersonaGenerator() {
           </div>
         </div>
 
-        {/* 生成预览区 */}
-        <div 
-          className={cn(
-            "h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background p-4 overflow-hidden transition-opacity duration-500 ease-in-out",
-            showPreview ? "opacity-100" : "opacity-0 pointer-events-none"
-          )}
-        >
-          {showPreview && (
-            <PersonaGenerationPreview
-              markdown={personaCompletion}
-              isGenerating={personaLoading}
-              onSave={openSaveDialog}
-              canSave={Boolean(parsedPersona || personaCompletion)}
-            />
-          )}
+          {/* 生成预览区 */}
+          <div 
+            className={cn(
+              "h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background p-4 overflow-hidden transition-opacity duration-500 ease-in-out",
+              showPreview ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}
+          >
+            {showPreview && (
+              <PersonaGenerationPreview
+                markdown={personaCompletion}
+                isGenerating={personaLoading}
+                onSave={openSaveDialog}
+                canSave={Boolean(parsedPersona || personaCompletion)}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 保存成功提示 */}
       {saveMessage && (

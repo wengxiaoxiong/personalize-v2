@@ -17,7 +17,6 @@ const tools = {
     description:
       "当信息已足够生成人设时调用。汇总用户提供的信息，让前端触发 /api/personas/generate。",
     inputSchema: z.object({
-      reason: z.string().describe("为什么认为信息足够，简要中文说明"),
       summary: z.string().describe("整合后的用户需求要点，方便后续生成人设"),
     }),
     execute: async ({ summary }) => {
