@@ -1,12 +1,25 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/personas/generate/route.ts（生成人设接口）
 import { deepseek } from "@ai-sdk/deepseek";
 import { streamText } from "ai";
 import { NextResponse } from "next/server";
 
+export const maxDuration = 30;
+
 export async function POST(req: Request) {
     try {
-        const payload = await req.json();
-        const { messages, brief, goal } = payload;
+        let payload;
+        try {
+            payload = await req.json();
+        } catch (parseError) {
+            console.error("JSON parse error:", parseError);
+            return NextResponse.json(
+                { success: false, error: "请求体格式错误" },
+                { status: 400 }
+            );
+        }
+
+        const { messages, brief, goal } = payload || {};
 
         let finalBrief = "";
         let finalGoal = "";
@@ -134,12 +147,13 @@ ${finalBrief}
             prompt: userPrompt,
         });
 
-        // 返回流式响应（适配前端的流式处理逻辑）
-        return result.toUIMessageStreamResponse();
+        // useCompletion 期望 text 流式响应
+        return result.toTextStreamResponse();
     } catch (error) {
         console.error("Persona generation failed:", error);
+        const errorMessage = error instanceof Error ? error.message : "生成人设失败，请重试";
         return NextResponse.json(
-            { success: false, error: "生成人设失败，请重试" },
+            { success: false, error: errorMessage },
             { status: 500 }
         );
     }
