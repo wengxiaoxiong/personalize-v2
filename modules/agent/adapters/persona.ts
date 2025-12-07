@@ -1,28 +1,28 @@
 import type { UIMessage } from "ai";
-import { parsePersonaMarkdown, type PersonaParseResult } from "@/lib/persona-parser";
-import { buildFallbackPersona } from "@/app/(dashboard)/personas/components/persona-generator-helpers";
+import { buildFallbackPersona, parsePersonaMarkdown, type PersonaParseResult } from "@/lib/persona-parser";
 
 export const PERSONA_TOOL_NAME = "finalizePersona";
 export const PERSONA_GENERATE_KEYWORDS = ["生成人设", "生成", "开始生成", "生成吧", "可以生成了"];
+export const PERSONA_PDF_MARKER = "[已上传简历/PDF]";
 
 export const buildPersonaPayload = (messages: UIMessage[]) => {
   const hasPdfContent = messages.some(
     (msg) =>
       msg.role === "user" &&
-      msg.parts?.some((part) => part.type === "text" && part.text.includes("[已上传简历/PDF]"))
+      msg.parts?.some((part) => part.type === "text" && part.text.includes(PERSONA_PDF_MARKER))
   );
 
   if (hasPdfContent) {
     const pdfMessage = messages.find(
       (msg) =>
         msg.role === "user" &&
-        msg.parts?.some((part) => part.type === "text" && part.text.includes("[已上传简历/PDF]"))
+        msg.parts?.some((part) => part.type === "text" && part.text.includes(PERSONA_PDF_MARKER))
     );
     const userSupplements = messages
       .filter(
         (msg) =>
           msg.role === "user" &&
-          !msg.parts?.some((part) => part.type === "text" && part.text.includes("[已上传简历/PDF]"))
+          !msg.parts?.some((part) => part.type === "text" && part.text.includes(PERSONA_PDF_MARKER))
       )
       .map((msg) =>
         msg.parts
@@ -37,7 +37,7 @@ export const buildPersonaPayload = (messages: UIMessage[]) => {
         ?.filter((part) => part.type === "text")
         .map((part) => part.text)
         .join("")
-        .replace("[已上传简历/PDF]\n\n", "") || "";
+        .replace(`${PERSONA_PDF_MARKER}\n\n`, "") || "";
 
     return {
       brief: pdfText + (userSupplements ? `\n\n用户补充需求：\n${userSupplements}` : ""),

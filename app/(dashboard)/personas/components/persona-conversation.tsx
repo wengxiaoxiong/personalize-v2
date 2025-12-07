@@ -14,8 +14,8 @@ import {
 import { Loader } from "@/components/ai-elements/loader";
 import { cn } from "@/lib/utils";
 import { extractSelectionQuestions } from "./persona-generator-helpers";
-import { SelectionQuestionCard } from "./selection-question-card";
-import { ToolCallCard } from "./tool-call-card";
+import { SelectionQuestionCard } from "@/modules/agent/ui/selection-question-card";
+import { ToolCallCard } from "@/modules/agent/ui/tool-call-card";
 
 type ChatMessage = UseChatHelpers<UIMessage>["messages"][number];
 type ChatStatus = UseChatHelpers<UIMessage>["status"];

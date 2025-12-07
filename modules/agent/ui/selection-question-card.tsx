@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { type SelectionQuestion } from "./persona-generator-helpers";
+import type { SelectionQuestion } from "../types/questions";
 
 type SelectionQuestionCardProps = {
   question: SelectionQuestion;

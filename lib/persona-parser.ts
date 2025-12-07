@@ -16,6 +16,24 @@ export type PersonaParseResult = {
   rawMarkdown: string;
 };
 
+export const buildFallbackPersona = (markdown: string): PersonaParseResult => ({
+  name: "",
+  alias: "",
+  tagline: "",
+  audience: "",
+  voice: "",
+  tone: "",
+  domainTags: [],
+  style: "",
+  background: "",
+  contentPillars: [],
+  hooks: [],
+  reminders: [],
+  bio: "",
+  callToAction: "",
+  rawMarkdown: markdown,
+});
+
 const fieldMap: Record<
   keyof Omit<
     PersonaParseResult,

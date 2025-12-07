@@ -14,15 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { parsePersonaMarkdown, type PersonaParseResult } from "@/lib/persona-parser";
-import {
-  PromptInput,
-  PromptInputBody,
-  PromptInputButton,
-  PromptInputFooter,
-  PromptInputTextarea,
-  PromptInputSubmit,
-  type PromptInputMessage,
-} from "@/components/ai-elements/prompt-input";
+import { PromptInputButton, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { AgentConversation } from "@/modules/agent/ui/agent-conversation";
 import { AgentSidecar } from "@/modules/agent/ui/agent-sidecar";
@@ -32,9 +24,11 @@ import { usePaneState } from "@/modules/agent/hooks/use-pane-state";
 import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
 import { useFileIngestion } from "@/modules/agent/hooks/use-file-ingestion";
 import type { AgentPartRenderer } from "@/modules/agent/types/agent";
+import { AgentPromptInput } from "@/modules/agent/ui/agent-prompt-input";
 import {
   PERSONA_GENERATE_KEYWORDS,
   PERSONA_TOOL_NAME,
+  PERSONA_PDF_MARKER,
   buildPersonaPayload,
   parsePersonaResult,
 } from "@/modules/agent/adapters/persona";
@@ -44,8 +38,8 @@ import { PersonaSaveForm } from "./persona-save-form";
 import { PdfUploadControl } from "./persona-pdf-upload";
 import { QUESTIONS, buildFallbackPersona } from "./persona-generator-helpers";
 import { extractSelectionQuestions } from "./persona-generator-helpers";
-import { SelectionQuestionCard } from "./selection-question-card";
-import { ToolCallCard } from "./tool-call-card";
+import { SelectionQuestionCard } from "@/modules/agent/ui/selection-question-card";
+import { ToolCallCard } from "@/modules/agent/ui/tool-call-card";
 
 export function PersonaGenerator() {
   const [finalPersona, setFinalPersona] = useState<PersonaParseResult | null>(null);
@@ -247,7 +241,7 @@ export function PersonaGenerator() {
         throw new Error("PDF 文字提取失败，未能提取到任何文字内容。请检查 PDF 文件是否清晰。");
       }
 
-      const pdfMessageText = `[已上传简历/PDF]\n\n${extractedText.substring(0, 2000)}${
+      const pdfMessageText = `${PERSONA_PDF_MARKER}\n\n${extractedText.substring(0, 2000)}${
         extractedText.length > 2000 ? "..." : ""
       }`;
 
@@ -344,20 +338,16 @@ export function PersonaGenerator() {
             selectedFileName={selectedFile?.name}
           />
 
-          <PromptInput onSubmit={handleSubmit} className="rounded-lg border bg-card/80">
-            <PromptInputBody>
-              <PromptInputTextarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                className="min-h-[200px] md:min-h-[240px] text-base"
-                placeholder="在这里输入你的需求，描述你想要构建的KOS人设..."
-                disabled={pdfUploading}
-              />
-            </PromptInputBody>
-            <PromptInputFooter>
-              <PromptInputSubmit status={status} disabled={pdfUploading || !inputValue.trim()} />
-            </PromptInputFooter>
-          </PromptInput>
+          <AgentPromptInput
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={handleSubmit}
+            status={status}
+            placeholder="在这里输入你的需求，描述你想要构建的KOS人设..."
+            disabled={pdfUploading}
+            submitDisabled={pdfUploading || !inputValue.trim()}
+            textareaClassName="min-h-[200px] md:min-h-[240px] text-base"
+          />
         </div>
       </div>
     </div>
@@ -426,31 +416,28 @@ export function PersonaGenerator() {
               </div>
             )}
 
-            <PromptInput onSubmit={handleSubmit} className="rounded-lg border bg-card/80">
-              <PromptInputBody>
-                <PromptInputTextarea
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  className="min-h-[110px]"
-                  placeholder={
-                    !personaLoading && !pdfUploading
-                      ? "直接输入你的回答，信息够了随时说“生成人设”"
-                      : pdfUploading
-                        ? "正在解析PDF..."
-                        : "人设生成中，请勿输入..."
-                  }
-                  disabled={disableSubmit}
-                />
-              </PromptInputBody>
-              <PromptInputFooter>
-                {personaLoading && (
+            <AgentPromptInput
+              value={inputValue}
+              onChange={setInputValue}
+              onSubmit={handleSubmit}
+              status={status}
+              placeholder={
+                !personaLoading && !pdfUploading
+                  ? "直接输入你的回答，信息够了随时说“生成人设”"
+                  : pdfUploading
+                    ? "正在解析PDF..."
+                    : "人设生成中，请勿输入..."
+              }
+              disabled={disableSubmit}
+              submitDisabled={disableSubmit}
+              footerContent={
+                personaLoading ? (
                   <PromptInputButton type="button" variant="outline" onClick={() => stopPersona()}>
                     停止生成
                   </PromptInputButton>
-                )}
-                <PromptInputSubmit status={status} disabled={disableSubmit} />
-              </PromptInputFooter>
-            </PromptInput>
+                ) : null
+              }
+            />
           </div>
         </div>
       </div>
