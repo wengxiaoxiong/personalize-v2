@@ -121,6 +121,18 @@ export function PersonaGenerator() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // 检测是否是桌面端
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    checkDesktop();
+    window.addEventListener('resize', checkDesktop);
+    return () => window.removeEventListener('resize', checkDesktop);
+  }, []);
 
   const {
     messages,
@@ -229,6 +241,7 @@ export function PersonaGenerator() {
     personaGenerationTriggered.current = true;
     setPersonaCompletion("");
     setFinalPersona(null);
+    setShowPreview(true); // 显示预览面板
 
     try {
       await generatePersona("", {
@@ -360,6 +373,7 @@ export function PersonaGenerator() {
     setFinalPersona(null);
     setShowSaveDialog(false);
     setSaveMessage(null);
+    setShowPreview(false); // 隐藏预览面板
     stopPersona();
     personaGenerationTriggered.current = false;
     processedToolCallIds.current.clear();
@@ -451,7 +465,17 @@ export function PersonaGenerator() {
 
   return (
     <div className="w-full mx-auto space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+      <div 
+        className={cn(
+          "grid gap-4",
+          "lg:transition-[grid-template-columns] lg:duration-500 lg:ease-in-out"
+        )}
+        style={{
+          gridTemplateColumns: isDesktop
+            ? (showPreview ? '1.15fr 0.85fr' : '1fr 0fr')
+            : '1fr',
+        }}
+      >
         {/* 聊天区 */}
         <div className="flex flex-col h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background">
           <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -645,13 +669,20 @@ export function PersonaGenerator() {
         </div>
 
         {/* 生成预览区 */}
-        <div className="h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background p-4 overflow-hidden">
-          <PersonaGenerationPreview
-            markdown={personaCompletion}
-            isGenerating={personaLoading}
-            onSave={openSaveDialog}
-            canSave={Boolean(parsedPersona || personaCompletion)}
-          />
+        <div 
+          className={cn(
+            "h-[calc(100vh-220px)] min-h-[620px] rounded-xl border bg-background p-4 overflow-hidden transition-opacity duration-500 ease-in-out",
+            showPreview ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+        >
+          {showPreview && (
+            <PersonaGenerationPreview
+              markdown={personaCompletion}
+              isGenerating={personaLoading}
+              onSave={openSaveDialog}
+              canSave={Boolean(parsedPersona || personaCompletion)}
+            />
+          )}
         </div>
       </div>
 
