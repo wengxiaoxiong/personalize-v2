@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/app/(dashboard)/components/dashboard-sidebar";
+import { DashboardMainContent } from "@/app/(dashboard)/components/dashboard-main-content";
 import { DashboardProvider } from "@/components/providers/dashboard-provider";
 import { getDashboardSnapshot, getSessionUser } from "../actions";
 
@@ -23,9 +24,7 @@ export default async function DashboardLayout({
     <DashboardProvider snapshot={snapshot} initialPersona={initialPersona} user={sessionUser}>
       <div className="min-h-screen">
         <DashboardSidebar />
-        <main className="ml-20 flex-1 p-6 lg:ml-64 lg:p-10">
-          {children}
-        </main>
+        <DashboardMainContent>{children}</DashboardMainContent>
       </div>
     </DashboardProvider>
   );

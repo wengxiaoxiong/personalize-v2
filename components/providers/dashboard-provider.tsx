@@ -20,6 +20,8 @@ type DashboardContextType = {
   setTopic: (topic: string) => void;
   tone: string;
   setTone: (tone: string) => void;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
 };
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -45,6 +47,7 @@ export function DashboardProvider({
   });
   const [topic, setTopic] = useState("环保随行杯发布");
   const [tone, setTone] = useState("温暖、口语化");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const value = useMemo(
     () => ({
@@ -58,8 +61,10 @@ export function DashboardProvider({
       setTopic,
       tone,
       setTone,
+      sidebarCollapsed,
+      setSidebarCollapsed,
     }),
-    [snapshot, user, selectedPersona, selectedPlatform, topic, tone],
+    [snapshot, user, selectedPersona, selectedPlatform, topic, tone, sidebarCollapsed, setSidebarCollapsed],
   );
 
   return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;
