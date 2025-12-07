@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,37 @@ const QUESTIONS = [
   "有没有平台特定要求或互动需求？比如「小红书/抖音适配，需要带动现场互动」",
 ];
 
+type SelectionQuestion = {
+  title: string;
+  options: string[];
+};
+
+const selectionBlockRegex = /<选择题>([\s\S]*?)<\/选择题>/g;
+
+const extractSelectionQuestions = (
+  text: string
+): { cleanText: string; questions: SelectionQuestion[] } => {
+  selectionBlockRegex.lastIndex = 0;
+  const questions: SelectionQuestion[] = [];
+  const matches = Array.from(text.matchAll(selectionBlockRegex));
+
+  for (const match of matches) {
+    const block = match[1] ?? "";
+    const titleMatch = block.match(/<题目>([\s\S]*?)<\/题目>/);
+    const optionMatches = Array.from(block.matchAll(/<选项>([\s\S]*?)<\/选项>/g))
+      .map((m) => (m[1] ?? "").trim())
+      .filter((opt): opt is string => opt.length > 0);
+
+    const title = titleMatch?.[1]?.trim() ?? "";
+    if (title && optionMatches.length > 0) {
+      questions.push({ title, options: optionMatches });
+    }
+  }
+
+  const cleanText = matches.length > 0 ? text.replace(selectionBlockRegex, "").trim() : text;
+  return { cleanText, questions };
+};
+
 type PersonaSaveFormProps = {
   persona: PersonaParseResult;
   onSuccess: (message?: string) => void;
@@ -87,6 +119,8 @@ export function PersonaGenerator() {
   const isFirstLoad = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [inputValue, setInputValue] = useState("");
 
   const {
     messages,
@@ -206,6 +240,48 @@ export function PersonaGenerator() {
     }
   }, [buildPersonaPayload, generatePersona, setPersonaCompletion]);
 
+  const handleOptionToggle = useCallback((option: string) => {
+    setSelectedOptions((prev) => {
+      const alreadySelected = prev.includes(option);
+
+      setInputValue((current) => {
+        const lines = current
+          .split(/\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+        if (alreadySelected) {
+          const remaining = lines.filter((line) => line !== option);
+          return remaining.join("\n");
+        }
+
+        if (lines.includes(option)) {
+          return current;
+        }
+
+        return [...lines, option].join("\n");
+      });
+
+      return alreadySelected
+        ? prev.filter((item) => item !== option)
+        : [...prev, option];
+    });
+  }, []);
+
+  const handleClearSelections = useCallback(() => {
+    setSelectedOptions([]);
+    setInputValue((current) => {
+      if (!selectedOptions.length) return current;
+      const lines = current
+        .split(/\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !selectedOptions.includes(line));
+
+      return lines.join("\n");
+    });
+  }, [selectedOptions]);
+
   // 初始化第一条AI消息
   useEffect(() => {
     if (isFirstLoad.current) {
@@ -247,11 +323,9 @@ export function PersonaGenerator() {
 
 
   // 处理提交
-  const handleSubmit = (message: PromptInputMessage) => {
-    const hasText = Boolean(message.text);
-    if (!hasText) return;
-
-    const trimmedInput = message.text.trim();
+  const handleSubmit = async (message: PromptInputMessage) => {
+    const currentInput = message.text || inputValue;
+    const trimmedInput = currentInput.trim();
     if (!trimmedInput) return;
 
     const generateKeywords = ["生成人设", "生成", "开始生成", "生成吧", "可以生成了"];
@@ -259,7 +333,7 @@ export function PersonaGenerator() {
       trimmedInput.toLowerCase().includes(keyword.toLowerCase())
     );
 
-    sendMessage(
+    const sendTask = sendMessage(
       { 
         text: trimmedInput,
         files: message.files 
@@ -274,6 +348,10 @@ export function PersonaGenerator() {
     if (shouldGenerate && !personaGenerationTriggered.current) {
       handlePersonaGeneration();
     }
+
+    await sendTask;
+    setSelectedOptions([]);
+    setInputValue("");
   };
 
   // 重置对话
@@ -285,6 +363,8 @@ export function PersonaGenerator() {
     stopPersona();
     personaGenerationTriggered.current = false;
     processedToolCallIds.current.clear();
+    setSelectedOptions([]);
+    setInputValue("");
 
     setMessages([
       {
@@ -410,18 +490,30 @@ export function PersonaGenerator() {
                       {message.parts?.map((part, idx) => {
                         if (part.type === "text") {
                           if (!part.text) return null;
+                          const { cleanText, questions } = extractSelectionQuestions(part.text);
                           return (
-                            <MessageResponse
-                              key={`${message.id}-text-${idx}`}
-                              className={cn(
-                                "max-w-none whitespace-pre-wrap break-words",
-                                message.role === "assistant"
-                                  ? "prose prose-sm"
-                                  : "text-sm leading-relaxed text-primary-foreground"
+                            <div key={`${message.id}-text-${idx}`} className="space-y-3">
+                              {cleanText && (
+                                <MessageResponse
+                                  className={cn(
+                                    "max-w-none whitespace-pre-wrap break-words",
+                                    message.role === "assistant"
+                                      ? "prose prose-sm"
+                                      : "text-sm leading-relaxed text-primary-foreground"
+                                  )}
+                                >
+                                  {cleanText}
+                                </MessageResponse>
                               )}
-                            >
-                              {part.text}
-                            </MessageResponse>
+                              {questions.map((question, questionIdx) => (
+                                <SelectionQuestionCard
+                                  key={`${message.id}-question-${idx}-${questionIdx}`}
+                                  question={question}
+                                  selectedOptions={selectedOptions}
+                                  onSelect={handleOptionToggle}
+                                />
+                              ))}
+                            </div>
                           );
                         }
 
@@ -495,9 +587,35 @@ export function PersonaGenerator() {
                 )}
               </div>
 
+              {selectedOptions.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs">
+                  <span className="text-muted-foreground">已选择</span>
+                  {selectedOptions.map((option) => (
+                    <Badge
+                      key={option}
+                      variant="secondary"
+                      className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                    >
+                      {option}
+                    </Badge>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    onClick={handleClearSelections}
+                  >
+                    清空
+                  </Button>
+                </div>
+              )}
+
               <PromptInput onSubmit={handleSubmit} className="rounded-lg border bg-card/80">
                 <PromptInputBody>
                   <PromptInputTextarea
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
                     className="min-h-[110px]"
                     placeholder={
                       !personaLoading && !pdfUploading
@@ -574,6 +692,44 @@ export function PersonaGenerator() {
 }
 
 type ToolState = ToolUIPart["state"];
+
+function SelectionQuestionCard({
+  question,
+  selectedOptions,
+  onSelect,
+}: {
+  question: SelectionQuestion;
+  selectedOptions: string[];
+  onSelect: (option: string) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/50 p-3 shadow-sm">
+      <p className="font-medium text-sm text-foreground">{question.title}</p>
+      <div className="flex flex-wrap gap-2">
+        {question.options.map((option) => {
+          const isSelected = selectedOptions.includes(option);
+          return (
+            <Button
+              key={option}
+              type="button"
+              size="sm"
+              variant={isSelected ? "secondary" : "outline"}
+              className={cn(
+                "rounded-full border px-3 text-xs transition-colors",
+                isSelected
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+                  : "hover:border-primary/40"
+              )}
+              onClick={() => onSelect(option)}
+            >
+              {option}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function getToolStatusMeta(state: ToolState) {
   switch (state) {
