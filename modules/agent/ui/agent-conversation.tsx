@@ -1,5 +1,5 @@
 import React from "react";
-import { isToolUIPart, type ToolUIPart, type UIMessage, type UIMessagePart } from "ai";
+import { isToolUIPart, type ToolUIPart, type UIMessage } from "ai";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import {
   Conversation,
@@ -13,10 +13,14 @@ import {
 } from "@/components/ai-elements/message";
 import { Loader } from "@/components/ai-elements/loader";
 import { cn } from "@/lib/utils";
-import type { AgentPartRenderer } from "../types/agent";
+import type { AgentPartRenderer, AgentPart } from "../types/agent";
 
 type ChatMessage = UseChatHelpers<UIMessage>["messages"][number];
 type ChatStatus = UseChatHelpers<UIMessage>["status"];
+
+function isAgentPart(part: ChatMessage["parts"][number]): part is AgentPart {
+  return true; // UIMessagePart 在结构上兼容 AgentPart (UIMessagePart<unknown, unknown>)
+}
 
 type AgentConversationProps = {
   messages: ChatMessage[];
@@ -26,7 +30,7 @@ type AgentConversationProps = {
 };
 
 export function AgentConversation({ messages, status, renderers = [], toolRenderer }: AgentConversationProps) {
-  const tryRenderers = (part: UIMessagePart<any, any>, message: ChatMessage, index: number) => {
+  const tryRenderers = (part: AgentPart, message: ChatMessage, index: number) => {
     for (const render of renderers) {
       const rendered = render({ part, message, index });
       if (rendered !== null && rendered !== undefined) return rendered;
@@ -41,11 +45,12 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
           <Message key={message.id} from={message.role}>
             <MessageContent
               className={cn(
-                "max-w-full break-words rounded-xl border px-3 py-2 shadow-sm whitespace-pre-wrap space-y-3",
+                "max-w-full wrap-break-word rounded-xl border px-3 py-2 shadow-sm whitespace-pre-wrap space-y-3",
                 message.role === "assistant" ? "bg-card text-foreground" : "bg-primary text-primary-foreground"
               )}
             >
               {message.parts?.map((part, idx) => {
+                if (!isAgentPart(part)) return null;
                 const custom = tryRenderers(part, message, idx);
                 if (custom) return <React.Fragment key={`${message.id}-part-${idx}`}>{custom}</React.Fragment>;
 
@@ -55,7 +60,7 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
                     <MessageResponse
                       key={`${message.id}-text-${idx}`}
                       className={cn(
-                        "max-w-none whitespace-pre-wrap break-words",
+                        "max-w-none whitespace-pre-wrap wrap-break-word",
                         message.role === "assistant"
                           ? "prose prose-sm"
                           : "text-sm leading-relaxed text-primary-foreground"

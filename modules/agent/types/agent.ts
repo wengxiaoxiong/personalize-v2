@@ -1,8 +1,11 @@
+// agent.ts
 import type React from "react";
-import type { UIMessage, UIMessagePart, ToolUIPart } from "ai";
+import type { UIMessage, UIMessagePart, ToolUIPart, UIDataTypes } from "ai";
 
 export type AgentMessage = UIMessage;
-export type AgentPart = UIMessagePart<any, any>;
+
+// FIX: 使用 UIDataTypes 满足类型约束，表示我们接受任意结构的 Tool 参数
+export type AgentPart = UIMessagePart<UIDataTypes, never>;
 
 export type AgentStatus = "idle" | "submitting" | "streaming";
 
@@ -17,6 +20,7 @@ export type AgentTaskResult<T = string> = {
 
 export type AgentTaskConfig<T = string> = {
   /** Default strategy is completion; if provided, use custom executor */
+  // FIX: 显式声明 payload 为 unknown
   execute?: (payload?: unknown) => Promise<T>;
   onFinish?: (result: T) => void;
   onError?: (error: Error) => void;
@@ -25,6 +29,7 @@ export type AgentTaskConfig<T = string> = {
 export type AgentToolTrigger = {
   type: "tool";
   toolName: string;
+  // FIX: 使用具体的 ToolUIPart 类型（通常不需要泛型，或者使用 unknown）
   onTrigger: (part: ToolUIPart) => void | Promise<void>;
 };
 
