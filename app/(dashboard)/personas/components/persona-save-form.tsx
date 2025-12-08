@@ -34,7 +34,6 @@ export function PersonaSaveForm({ persona, personaId, avatarUrl, onSuccess, onCa
   useEffect(() => {
     if (isEditMode && personaId) {
       async function loadPersona() {
-        // personaId 在这里已经确定不为 undefined（因为 isEditMode && personaId 的检查）
         const data = await getPersonaForEdit(personaId!);
         if (data) {
           setFormPersona(data);

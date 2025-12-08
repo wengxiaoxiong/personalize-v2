@@ -18,9 +18,6 @@ export function PersonaCard({
   return (
     <Card className="relative">
       <CardContent className="p-5">
-        <Badge className="absolute right-3 top-3">
-          {persona.badge || "模板"}
-        </Badge>
         <div className="mb-3 flex items-center gap-3">
           {persona.avatarUrl ? (
             <img

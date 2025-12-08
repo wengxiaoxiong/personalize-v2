@@ -10,6 +10,7 @@ import { client, bucketName } from "@/lib/tos";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import type { PersonaParseResult } from "@/lib/persona-parser";
 import type { KosPersona } from "@/lib/generated/prisma";
+import { xiaohongshuDataSchema } from "@/lib/xiaohongshu-parser";
 
 export type PersonaSummary = {
   id?: string;
@@ -1161,5 +1162,98 @@ export async function deletePersonaAction(
   } catch (error) {
     console.error("Delete persona failed", error);
     return { ok: false, message: "删除人设失败，请稍后再试" };
+  }
+}
+
+/**
+ * 保存小红书导入的JSON数据到数据库
+ * 使用 Zod schema 进行严格验证，数据结构不符合预期则不保存
+ */
+export async function saveXiaohongshuPostAction(
+  rawData: unknown
+): Promise<ActionState> {
+  console.log("saveXiaohongshuPostAction called with data:", JSON.stringify(rawData).substring(0, 200));
+  
+  // 使用 Zod schema 验证数据结构
+  const validationResult = xiaohongshuDataSchema.safeParse(rawData);
+  
+  if (!validationResult.success) {
+    const errorMessages = validationResult.error.issues.map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join(".") : "根对象";
+      return `${path}: ${issue.message}`;
+    }).join("; ");
+    console.error("小红书数据结构验证失败:", errorMessages);
+    console.error("详细错误:", validationResult.error.format());
+    return { 
+      ok: false, 
+      message: `数据结构不符合预期: ${errorMessages}` 
+    };
+  }
+
+  const validatedData = validationResult.data;
+  
+  if (!dbAvailable()) {
+    console.error("数据库未连接");
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      console.error("用户未登录");
+      return { ok: false, message: "请先登录" };
+    }
+
+    console.log("当前用户ID:", user.id);
+
+    // 提取常用字段方便查询
+    const userInfo = validatedData.userInfo;
+    const nickname = userInfo?.nickname || null;
+    const redId = userInfo?.redId || null;
+    const avatar = userInfo?.avatar || null;
+    const description = userInfo?.description || null;
+    const feedCount = validatedData.count ?? validatedData.feeds?.length ?? null;
+    const sourceUrl = validatedData.url || null;
+
+    console.log("准备保存数据:", {
+      userId: user.id,
+      nickname,
+      redId,
+      feedCount,
+    });
+
+    // 检查 Prisma 客户端是否包含 personaPost 模型
+    if (!prisma.personaPost) {
+      const errorMsg = "Prisma 客户端未包含 personaPost 模型。请运行: npx prisma generate";
+      console.error(errorMsg);
+      return { ok: false, message: errorMsg };
+    }
+
+    // 保存到数据库 - validatedData 已经通过 Zod 验证，类型安全
+    // 将数据转换为 Prisma 接受的 JSON 格式（序列化后再解析以确保类型正确）
+    const jsonData = JSON.parse(JSON.stringify(validatedData));
+    
+    const result = await prisma.personaPost.create({
+      data: {
+        userId: user.id,
+        rawData: jsonData, // 已验证并序列化的数据
+        nickname,
+        redId,
+        avatar,
+        description,
+        feedCount,
+        sourceUrl,
+      },
+    });
+
+    console.log("小红书数据已保存，ID:", result.id);
+    return { ok: true, message: "小红书数据已保存" };
+  } catch (error) {
+    console.error("Save Xiaohongshu post failed", error);
+    if (error instanceof Error) {
+      console.error("错误详情:", error.message);
+      console.error("错误堆栈:", error.stack);
+    }
+    return { ok: false, message: `保存小红书数据失败: ${error instanceof Error ? error.message : "未知错误"}` };
   }
 }

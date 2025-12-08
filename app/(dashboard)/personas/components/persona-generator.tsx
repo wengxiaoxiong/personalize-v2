@@ -86,7 +86,7 @@ export function PersonaGenerator() {
       setXhsImporting(true);
       try {
         await handleXhsJsonImport(jsonString);
-        // 导入成功后关闭对话框
+        // 导入成功后立即关闭对话框，提升用户体验
         setXhsDialogOpen(false);
       } catch (error) {
         // 错误已经在 orchestrator 中处理并设置到 errors 状态

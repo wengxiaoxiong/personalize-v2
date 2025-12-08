@@ -48,9 +48,9 @@ export function XiaohongshuImportDialog({
     }
 
     try {
-      // 调用导入函数
+      // 调用导入函数（成功后父组件会关闭对话框）
       await onImport(jsonText);
-      // 导入成功后清空输入（对话框由父组件关闭）
+      // 清空输入，准备下次使用
       setJsonText("");
       setLocalError(null);
     } catch (error) {

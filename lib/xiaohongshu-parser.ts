@@ -3,27 +3,52 @@
  * 将小红书JSON数据转换为结构化文本，供AI分析
  */
 
-export type XiaohongshuData = {
-  feeds?: Array<{
-    title?: string;
-    authorName?: string;
-    likeCount?: string;
-    coverImage?: string;
-  }>;
-  userInfo?: {
-    nickname?: string;
-    redId?: string;
-    avatar?: string;
-    description?: string;
-    gender?: string;
-    location?: string;
-    followingCount?: string;
-    followersCount?: string;
-    likesAndCollectionsCount?: string;
-  };
-  count?: number;
-  url?: string;
-};
+import { z } from "zod";
+
+// Zod schema 用于验证小红书数据结构
+export const xiaohongshuFeedSchema = z.object({
+  index: z.number().optional(),
+  dataWidth: z.string().optional(),
+  dataHeight: z.string().optional(),
+  link: z.string().url().optional(),
+  noteId: z.string().optional(),
+  coverImage: z.string().url().optional(),
+  title: z.string().optional(),
+  authorName: z.string().optional(),
+  authorAvatar: z.string().url().optional(),
+  authorLink: z.string().url().optional(),
+  likeCount: z.union([z.string(), z.number()]).optional(),
+}).passthrough(); // 允许额外字段，但验证已知字段
+
+export const xiaohongshuUserInfoSchema = z.object({
+  nickname: z.string().optional(),
+  redId: z.string().optional(),
+  avatar: z.string().url().optional(),
+  description: z.string().optional(),
+  gender: z.string().optional(),
+  location: z.string().optional(),
+  followingCount: z.union([z.string(), z.number()]).optional(),
+  followersCount: z.union([z.string(), z.number()]).optional(),
+  likesAndCollectionsCount: z.union([z.string(), z.number()]).optional(),
+}).passthrough();
+
+export const xiaohongshuDataSchema = z.object({
+  feeds: z.array(xiaohongshuFeedSchema).optional(),
+  count: z.number().optional(),
+  timestamp: z.string().optional(),
+  url: z.string().url().optional(),
+  userInfo: xiaohongshuUserInfoSchema.optional(),
+}).refine(
+  (data) => {
+    // 至少需要有 userInfo 或 feeds 之一
+    return !!(data.userInfo || (data.feeds && data.feeds.length > 0));
+  },
+  {
+    message: "数据必须包含 userInfo 或至少一条 feed",
+  }
+).passthrough();
+
+export type XiaohongshuData = z.infer<typeof xiaohongshuDataSchema>;
 
 /**
  * 解析小红书JSON数据为结构化文本
@@ -100,17 +125,19 @@ export function parseXiaohongshuData(data: XiaohongshuData): string {
 
 /**
  * 验证并解析小红书JSON字符串
+ * 使用 Zod schema 进行严格验证
  */
 export function parseXiaohongshuJson(jsonString: string): XiaohongshuData | null {
   try {
-    const data = JSON.parse(jsonString) as XiaohongshuData;
+    const parsed = JSON.parse(jsonString);
+    const result = xiaohongshuDataSchema.safeParse(parsed);
     
-    // 基本验证
-    if (!data.userInfo && (!data.feeds || data.feeds.length === 0)) {
+    if (!result.success) {
+      console.error("小红书JSON验证失败:", result.error.format());
       return null;
     }
 
-    return data;
+    return result.data;
   } catch (error) {
     console.error("Failed to parse Xiaohongshu JSON:", error);
     return null;
