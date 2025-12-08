@@ -43,6 +43,7 @@ model User {
   kosPersonas         KosPersona[]
   contentGenerations  ContentGeneration[]
   recommendations     Recommendation[]
+  personaPosts        PersonaPost[]
 
   @@map("users")
 }
@@ -146,4 +147,24 @@ model Recommendation {
   recommendedPersona KosPersona?      @relation(fields: [recommendedPersonaId], references: [id])
 
   @@map("recommendations")
+}
+
+model PersonaPost {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  rawData           Json     @map("raw_data")
+  nickname          String?  @map("nickname")
+  redId             String?  @map("red_id")
+  avatar            String?  @map("avatar")
+  description       String?  @map("description")
+  feedCount         Int?     @map("feed_count")
+  sourceUrl         String?  @map("source_url")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([redId])
+  @@map("persona_posts")
 }

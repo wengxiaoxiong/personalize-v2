@@ -21,6 +21,7 @@ import { AgentPromptInput } from "@/modules/agent/ui/agent-prompt-input";
 import { PersonaGenerationPreview } from "./persona-generation-preview";
 import { PersonaSaveForm } from "./persona-save-form";
 import { PdfUploadControl } from "./persona-pdf-upload";
+import { XiaohongshuImportDialog } from "./xiaohongshu-import-dialog";
 import { ToolCallCard } from "@/modules/agent/ui/tool-call-card";
 import { usePersonaState } from "@/modules/persona/usePersonaState";
 import { usePersonaOrchestrator } from "@/modules/persona/usePersonaOrchestrator";
@@ -28,6 +29,8 @@ import { createPersonaSelectionRenderer } from "./persona-selection-renderer";
 
 export function PersonaGenerator() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [xhsDialogOpen, setXhsDialogOpen] = useState(false);
+  const [xhsImporting, setXhsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const personaState = usePersonaState();
   const pane = usePaneState(false);
@@ -50,6 +53,7 @@ export function PersonaGenerator() {
       handleOptionToggle,
       handleClearSelections,
       handleFileSelect,
+      handleXhsJsonImport,
       openSaveDialog,
       resetWorkflow,
       stopPersona,
@@ -77,9 +81,28 @@ export function PersonaGenerator() {
     [handleFileSelect]
   );
 
+  const handleXhsImport = useCallback(
+    async (jsonString: string) => {
+      setXhsImporting(true);
+      try {
+        await handleXhsJsonImport(jsonString);
+        // 导入成功后立即关闭对话框，提升用户体验
+        setXhsDialogOpen(false);
+      } catch (error) {
+        // 错误已经在 orchestrator 中处理并设置到 errors 状态
+        // 对话框保持打开，让用户看到错误信息
+        console.error("导入失败:", error);
+      } finally {
+        setXhsImporting(false);
+      }
+    },
+    [handleXhsJsonImport]
+  );
+
   const pdfUploadProps = {
     fileInputRef,
     onFileSelect: onFileChange,
+    onXhsImportClick: () => setXhsDialogOpen(true),
     pdfUploading: pdf.uploading,
     pdfProgress: pdf.progress,
     selectedFileName: persona.pdfFile?.name,
@@ -226,12 +249,21 @@ export function PersonaGenerator() {
           {persona.finalPersona && (
             <PersonaSaveForm
               persona={persona.finalPersona}
+              avatarUrl={persona.xhsAvatar}
               onSuccess={handleSaved}
               onCancel={() => setShowSaveDialog(false)}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      <XiaohongshuImportDialog
+        open={xhsDialogOpen}
+        onOpenChange={setXhsDialogOpen}
+        onImport={handleXhsImport}
+        importing={xhsImporting || pdf.uploading}
+        importError={errors}
+      />
 
       {(errors || chat.error || personaFlow.error) && (
         <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3 text-xs text-rose-800">

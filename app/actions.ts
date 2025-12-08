@@ -8,6 +8,9 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { client, bucketName } from "@/lib/tos";
 import { hashPassword, verifyPassword } from "@/lib/auth";
+import type { PersonaParseResult } from "@/lib/persona-parser";
+import type { KosPersona } from "@/lib/generated/prisma";
+import { xiaohongshuDataSchema } from "@/lib/xiaohongshu-parser";
 
 export type PersonaSummary = {
   id?: string;
@@ -231,6 +234,7 @@ const personaSchema = z.object({
   reminders: z.string().optional(),
   bio: z.string().optional(),
   callToAction: z.string().optional(),
+  avatarUrl: z.union([z.string().url(), z.literal("")]).optional(),
 });
 
 const materialSchema = z.object({
@@ -423,20 +427,32 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     ]);
 
     return {
-      personas: personas.map((p) => ({
-        id: p.id,
-        name: p.name,
-        domain: (p.domainTags as string[]) || [],
-        style:
-          typeof p.expressionStyle === "string"
-            ? p.expressionStyle
-            : Array.isArray(p.expressionStyle)
-              ? p.expressionStyle.join(" · ")
-              : "结构化表达",
-        usage: 0,
-        lastUsed: p.updatedAt.toLocaleDateString("zh-CN"),
-        avatarUrl: p.avatarUrl,
-      })),
+      personas: personas.map((p) => {
+        const professionalBackground = p.professionalBackground as ProfessionalBackground | null;
+        const expressionStyle = p.expressionStyle as ExpressionStyle;
+        const audienceRelation = p.audienceRelation as AudienceRelation | null;
+        const professionalPreferences = p.professionalPreferences as ProfessionalPreferences | null;
+
+        return {
+          id: p.id,
+          name: p.name,
+          domain: (p.domainTags as string[]) || [],
+          style: expressionStyle.style || "结构化表达",
+          usage: 0,
+          lastUsed: p.updatedAt.toLocaleDateString("zh-CN"),
+          avatarUrl: p.avatarUrl,
+          alias: professionalBackground?.alias,
+          tagline: professionalBackground?.tagline,
+          audience: audienceRelation?.audience,
+          voice: expressionStyle.voice,
+          tone: expressionStyle.tone,
+          background: professionalBackground?.background,
+          bio: professionalBackground?.bio,
+          callToAction: professionalPreferences?.callToAction,
+          contentPillars: professionalPreferences?.contentPillars || [],
+          hooks: professionalPreferences?.hooks || [],
+        };
+      }),
       posts: posts.map((post) => {
         const contentPack = post.contentPack as { title?: string; headline?: string } | null;
         const title = contentPack?.title || contentPack?.headline || post.id;
@@ -496,22 +512,29 @@ export async function createPersonaAction(
     }
   }
 
+  // 辅助函数：将 FormData 的 null 值转换为 undefined（Zod optional() 需要 undefined，不接受 null）
+  const getFormValue = (key: string): string | undefined => {
+    const value = formData.get(key);
+    return value === null ? undefined : (typeof value === "string" ? value : undefined);
+  };
+
   const parsed = personaSchema.safeParse({
     name: formData.get("name"),
     domain: formData.get("domain"),
     style: formData.get("style"),
     userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
-    background: formData.get("background"),
-    audience: formData.get("audience"),
-    voice: formData.get("voice"),
-    tone: formData.get("tone"),
-    tagline: formData.get("tagline"),
-    alias: formData.get("alias"),
-    contentPillars: formData.get("contentPillars"),
-    hooks: formData.get("hooks"),
-    reminders: formData.get("reminders"),
-    bio: formData.get("bio"),
-    callToAction: formData.get("callToAction"),
+    background: getFormValue("background"),
+    audience: getFormValue("audience"),
+    voice: getFormValue("voice"),
+    tone: getFormValue("tone"),
+    tagline: getFormValue("tagline"),
+    alias: getFormValue("alias"),
+    contentPillars: getFormValue("contentPillars"),
+    hooks: getFormValue("hooks"),
+    reminders: getFormValue("reminders"),
+    bio: getFormValue("bio"),
+    callToAction: getFormValue("callToAction"),
+    avatarUrl: getFormValue("avatarUrl"),
   });
 
   if (!parsed.success) {
@@ -560,6 +583,7 @@ export async function createPersonaAction(
       data: {
         userId: user.id, // 始终使用当前登录用户的ID
         name: parsed.data.name,
+        avatarUrl: parsed.data.avatarUrl && parsed.data.avatarUrl.trim() ? parsed.data.avatarUrl.trim() : null,
         domainTags: parsed.data.domain.split(",").map((tag) => tag.trim()),
         professionalBackground: parsed.data.background ? {
           background: parsed.data.background,
@@ -787,5 +811,455 @@ export async function recordGenerationAction(
   } catch (error) {
     console.error("Record generation failed", error);
     return { ok: false, message: "记录生成结果失败" };
+  }
+}
+
+// 获取单个persona数据（用于编辑）
+export async function getPersonaById(personaId: string) {
+  if (!dbAvailable()) {
+    return null;
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return null;
+    }
+
+    const persona = await prisma.kosPersona.findFirst({
+      where: {
+        id: personaId,
+        userId: user.id, // 确保只能获取当前用户的人设
+      },
+    });
+
+    return persona;
+  } catch (error) {
+    console.error("Failed to get persona", error);
+    return null;
+  }
+}
+
+// JSON 字段的类型定义
+type ProfessionalBackground = {
+  background?: string;
+  tagline?: string;
+  alias?: string;
+  bio?: string;
+};
+
+type ExpressionStyle = {
+  style?: string;
+  voice?: string;
+  tone?: string;
+};
+
+type AudienceRelation = {
+  audience?: string;
+};
+
+type ProfessionalPreferences = {
+  contentPillars?: string[];
+  hooks?: string[];
+  reminders?: string[];
+  callToAction?: string;
+};
+
+// 将数据库格式转换为 PersonaParseResult 格式（后端处理）
+function convertDbPersonaToParseResult(dbPersona: KosPersona): PersonaParseResult {
+  const domainTags = Array.isArray(dbPersona.domainTags) 
+    ? (dbPersona.domainTags as string[]) 
+    : [];
+  
+  const professionalBackground = (dbPersona.professionalBackground as ProfessionalBackground | null) || {};
+  const expressionStyle = (dbPersona.expressionStyle as ExpressionStyle) || {};
+  const audienceRelation = (dbPersona.audienceRelation as AudienceRelation | null) || {};
+  const professionalPreferences = (dbPersona.professionalPreferences as ProfessionalPreferences | null) || {};
+
+  return {
+    name: dbPersona.name,
+    alias: professionalBackground.alias || "",
+    tagline: professionalBackground.tagline || "",
+    audience: audienceRelation.audience || "",
+    voice: expressionStyle.voice || "",
+    tone: expressionStyle.tone || "",
+    domainTags,
+    style: expressionStyle.style || "",
+    background: professionalBackground.background || "",
+    contentPillars: Array.isArray(professionalPreferences.contentPillars)
+      ? professionalPreferences.contentPillars
+      : [],
+    hooks: Array.isArray(professionalPreferences.hooks) ? professionalPreferences.hooks : [],
+    reminders: Array.isArray(professionalPreferences.reminders) ? professionalPreferences.reminders : [],
+    bio: professionalBackground.bio || "",
+    callToAction: professionalPreferences.callToAction || "",
+    rawMarkdown: "",
+  };
+}
+
+// 获取用于编辑的persona数据（返回 PersonaParseResult 格式）
+export async function getPersonaForEdit(personaId: string): Promise<PersonaParseResult | null> {
+  if (!dbAvailable()) {
+    return null;
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return null;
+    }
+
+    const persona = await prisma.kosPersona.findFirst({
+      where: {
+        id: personaId,
+        userId: user.id, // 确保只能获取当前用户的人设
+      },
+    });
+
+    if (!persona) {
+      return null;
+    }
+
+    return convertDbPersonaToParseResult(persona);
+  } catch (error) {
+    console.error("Failed to get persona for edit", error);
+    return null;
+  }
+}
+
+// 更新人设
+export async function updatePersonaAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const personaId = formData.get("personaId") as string | null;
+  if (!personaId) {
+    return { ok: false, message: "人设ID不能为空" };
+  }
+
+  const parsed = personaSchema.safeParse({
+    name: formData.get("name"),
+    domain: formData.get("domain"),
+    style: formData.get("style"),
+    background: formData.get("background"),
+    audience: formData.get("audience"),
+    voice: formData.get("voice"),
+    tone: formData.get("tone"),
+    tagline: formData.get("tagline"),
+    alias: formData.get("alias"),
+    contentPillars: formData.get("contentPillars"),
+    hooks: formData.get("hooks"),
+    reminders: formData.get("reminders"),
+    bio: formData.get("bio"),
+    callToAction: formData.get("callToAction"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message || "输入不合法" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 检查人设是否存在且属于当前用户
+    const existingPersona = await prisma.kosPersona.findFirst({
+      where: {
+        id: personaId,
+        userId: user.id,
+      },
+    });
+
+    if (!existingPersona) {
+      return { ok: false, message: "人设不存在或无权访问" };
+    }
+
+    // Parse array fields
+    const parseArrayField = (value: string | undefined): string[] => {
+      if (!value) return [];
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item) => typeof item === "string" && item.trim());
+        }
+      } catch {
+        // Not JSON, treat as multiline text
+      }
+      
+      return trimmed
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    };
+
+    const contentPillars = parseArrayField(parsed.data.contentPillars);
+    const hooks = parseArrayField(parsed.data.hooks);
+    const reminders = parseArrayField(parsed.data.reminders);
+
+    await prisma.kosPersona.update({
+      where: { id: personaId },
+      data: {
+        name: parsed.data.name,
+        domainTags: parsed.data.domain.split(",").map((tag) => tag.trim()),
+        professionalBackground: parsed.data.background ? {
+          background: parsed.data.background,
+          tagline: parsed.data.tagline,
+          alias: parsed.data.alias,
+          bio: parsed.data.bio,
+        } : {},
+        expressionStyle: {
+          style: parsed.data.style,
+          voice: parsed.data.voice,
+          tone: parsed.data.tone,
+        },
+        audienceRelation: parsed.data.audience ? {
+          audience: parsed.data.audience,
+        } : {},
+        professionalPreferences: {
+          contentPillars,
+          hooks,
+          reminders,
+          callToAction: parsed.data.callToAction,
+        },
+      },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/dashboard/personas");
+    return { ok: true, message: "人设已更新" };
+  } catch (error) {
+    console.error("Update persona failed", error);
+    return { ok: false, message: "更新人设失败，请稍后再试" };
+  }
+}
+
+// 复制人设
+export async function copyPersonaAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const personaId = formData.get("personaId") as string | null;
+  if (!personaId) {
+    return { ok: false, message: "人设ID不能为空" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 获取原人设数据
+    const originalPersona = await prisma.kosPersona.findFirst({
+      where: {
+        id: personaId,
+        userId: user.id,
+      },
+    });
+
+    if (!originalPersona) {
+      return { ok: false, message: "人设不存在或无权访问" };
+    }
+
+    // 从原始数据中提取 JSON 字段并重新构造对象
+    const domainTags = Array.isArray(originalPersona.domainTags) 
+      ? (originalPersona.domainTags as string[])
+      : [];
+    
+    const professionalBackground = originalPersona.professionalBackground as ProfessionalBackground | null;
+    const expressionStyle = originalPersona.expressionStyle as ExpressionStyle;
+    const audienceRelation = originalPersona.audienceRelation as AudienceRelation | null;
+    const professionalPreferences = originalPersona.professionalPreferences as ProfessionalPreferences | null;
+
+    // 创建新的人设，复制所有字段
+    await prisma.kosPersona.create({
+      data: {
+        userId: user.id,
+        name: `${originalPersona.name} (副本)`,
+        avatarUrl: originalPersona.avatarUrl,
+        domainTags,
+        professionalBackground: professionalBackground ? {
+          background: professionalBackground.background,
+          tagline: professionalBackground.tagline,
+          alias: professionalBackground.alias,
+          bio: professionalBackground.bio,
+        } : {},
+        expressionStyle: {
+          style: expressionStyle.style,
+          voice: expressionStyle.voice,
+          tone: expressionStyle.tone,
+        },
+        audienceRelation: audienceRelation ? {
+          audience: audienceRelation.audience,
+        } : {},
+        professionalPreferences: {
+          contentPillars: professionalPreferences?.contentPillars || [],
+          hooks: professionalPreferences?.hooks || [],
+          reminders: professionalPreferences?.reminders || [],
+          callToAction: professionalPreferences?.callToAction,
+        },
+        isTemplate: originalPersona.isTemplate,
+        templateCategory: originalPersona.templateCategory,
+      },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/dashboard/personas");
+    return { ok: true, message: "人设已复制" };
+  } catch (error) {
+    console.error("Copy persona failed", error);
+    return { ok: false, message: "复制人设失败，请稍后再试" };
+  }
+}
+
+// 删除人设
+export async function deletePersonaAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const personaId = formData.get("personaId") as string | null;
+  if (!personaId) {
+    return { ok: false, message: "人设ID不能为空" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 检查人设是否存在且属于当前用户
+    const existingPersona = await prisma.kosPersona.findFirst({
+      where: {
+        id: personaId,
+        userId: user.id,
+      },
+    });
+
+    if (!existingPersona) {
+      return { ok: false, message: "人设不存在或无权访问" };
+    }
+
+    // 删除人设
+    await prisma.kosPersona.delete({
+      where: { id: personaId },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/dashboard/personas");
+    return { ok: true, message: "人设已删除" };
+  } catch (error) {
+    console.error("Delete persona failed", error);
+    return { ok: false, message: "删除人设失败，请稍后再试" };
+  }
+}
+
+/**
+ * 保存小红书导入的JSON数据到数据库
+ * 使用 Zod schema 进行严格验证，数据结构不符合预期则不保存
+ */
+export async function saveXiaohongshuPostAction(
+  rawData: unknown
+): Promise<ActionState> {
+  console.log("saveXiaohongshuPostAction called with data:", JSON.stringify(rawData).substring(0, 200));
+  
+  // 使用 Zod schema 验证数据结构
+  const validationResult = xiaohongshuDataSchema.safeParse(rawData);
+  
+  if (!validationResult.success) {
+    const errorMessages = validationResult.error.issues.map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join(".") : "根对象";
+      return `${path}: ${issue.message}`;
+    }).join("; ");
+    console.error("小红书数据结构验证失败:", errorMessages);
+    console.error("详细错误:", validationResult.error.format());
+    return { 
+      ok: false, 
+      message: `数据结构不符合预期: ${errorMessages}` 
+    };
+  }
+
+  const validatedData = validationResult.data;
+  
+  if (!dbAvailable()) {
+    console.error("数据库未连接");
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      console.error("用户未登录");
+      return { ok: false, message: "请先登录" };
+    }
+
+    console.log("当前用户ID:", user.id);
+
+    // 提取常用字段方便查询
+    const userInfo = validatedData.userInfo;
+    const nickname = userInfo?.nickname || null;
+    const redId = userInfo?.redId || null;
+    const avatar = userInfo?.avatar || null;
+    const description = userInfo?.description || null;
+    const feedCount = validatedData.count ?? validatedData.feeds?.length ?? null;
+    const sourceUrl = validatedData.url || null;
+
+    console.log("准备保存数据:", {
+      userId: user.id,
+      nickname,
+      redId,
+      feedCount,
+    });
+
+    // 检查 Prisma 客户端是否包含 personaPost 模型
+    if (!prisma.personaPost) {
+      const errorMsg = "Prisma 客户端未包含 personaPost 模型。请运行: npx prisma generate";
+      console.error(errorMsg);
+      return { ok: false, message: errorMsg };
+    }
+
+    // 保存到数据库 - validatedData 已经通过 Zod 验证，类型安全
+    // 将数据转换为 Prisma 接受的 JSON 格式（序列化后再解析以确保类型正确）
+    const jsonData = JSON.parse(JSON.stringify(validatedData));
+    
+    const result = await prisma.personaPost.create({
+      data: {
+        userId: user.id,
+        rawData: jsonData, // 已验证并序列化的数据
+        nickname,
+        redId,
+        avatar,
+        description,
+        feedCount,
+        sourceUrl,
+      },
+    });
+
+    console.log("小红书数据已保存，ID:", result.id);
+    return { ok: true, message: "小红书数据已保存" };
+  } catch (error) {
+    console.error("Save Xiaohongshu post failed", error);
+    if (error instanceof Error) {
+      console.error("错误详情:", error.message);
+      console.error("错误堆栈:", error.stack);
+    }
+    return { ok: false, message: `保存小红书数据失败: ${error instanceof Error ? error.message : "未知错误"}` };
   }
 }

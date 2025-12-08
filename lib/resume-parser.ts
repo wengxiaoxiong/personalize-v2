@@ -40,20 +40,27 @@ declare global {
 const TESSERACT_LANG = "chi_sim+eng";
 
 /**
- * 加载 PDF.js 库（参考你的代码）
+ * 加载 PDF.js 库（使用本地文件，避免网络问题）
  */
 async function loadPDFJS(): Promise<PDFJSLib> {
   if (window.pdfjsLib) return window.pdfjsLib;
 
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    // 使用本地文件，避免 CDN 网络问题
+    // 文件路径：public/static/dist/build/pdf.js
+    script.src = "/static/dist/build/pdf.js";
     script.onload = () => {
+      // 设置 worker 路径为本地文件
+      // 文件路径：public/static/dist/build/pdf.worker.js
       window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        "/static/dist/build/pdf.worker.js";
       resolve(window.pdfjsLib);
     };
-    script.onerror = reject;
+    script.onerror = (error) => {
+      console.error("PDF.js 加载失败，请确保文件存在于 public/static/dist/build/ 目录", error);
+      reject(new Error("PDF.js 库加载失败，请检查文件是否存在"));
+    };
     document.head.appendChild(script);
   });
 }

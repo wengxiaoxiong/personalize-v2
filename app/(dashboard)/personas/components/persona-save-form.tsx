@@ -1,25 +1,48 @@
 import { Save } from "lucide-react";
-import React, { useActionState, useEffect } from "react";
+import React, { useActionState, useEffect, useState } from "react";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { createPersonaAction, type ActionState } from "@/app/actions";
+import { createPersonaAction, updatePersonaAction, getPersonaForEdit, type ActionState } from "@/app/actions";
 import { type PersonaParseResult } from "@/lib/persona-parser";
 
 type PersonaSaveFormProps = {
-  persona: PersonaParseResult;
+  persona?: PersonaParseResult;
+  personaId?: string;
+  avatarUrl?: string | null;
   onSuccess: (message?: string) => void;
   onCancel: () => void;
 };
 
-export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFormProps) {
-  const [state, formAction] = useActionState<ActionState, FormData>(createPersonaAction, {
-    ok: false,
-    message: "",
-  });
+export function PersonaSaveForm({ persona, personaId, avatarUrl, onSuccess, onCancel }: PersonaSaveFormProps) {
+  const isEditMode = !!personaId;
+  const [loading, setLoading] = useState(isEditMode);
+  const [formPersona, setFormPersona] = useState<PersonaParseResult | null>(persona || null);
+
+  const [state, formAction] = useActionState<ActionState, FormData>(
+    isEditMode ? updatePersonaAction : createPersonaAction,
+    {
+      ok: false,
+      message: "",
+    }
+  );
+
+  // 编辑模式：加载数据（后端已处理数据转换）
+  useEffect(() => {
+    if (isEditMode && personaId) {
+      async function loadPersona() {
+        const data = await getPersonaForEdit(personaId!);
+        if (data) {
+          setFormPersona(data);
+        }
+        setLoading(false);
+      }
+      loadPersona();
+    }
+  }, [isEditMode, personaId]);
 
   useEffect(() => {
     if (state.ok) {
@@ -27,25 +50,48 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
     }
   }, [state, onSuccess]);
 
-  const defaultDomain = persona.domainTags?.join(", ") || "";
-  const defaultStyle = persona.voice || persona.tone || persona.style || "";
-  const defaultContentPillars = persona.contentPillars?.join("\n") || "";
-  const defaultHooks = persona.hooks?.join("\n") || "";
-  const defaultReminders = persona.reminders?.join("\n") || "";
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-sm text-muted-foreground">加载中...</div>
+      </div>
+    );
+  }
+
+  if (!formPersona) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-sm text-rose-500">人设数据不存在</div>
+      </div>
+    );
+  }
+
+  const defaultDomain = formPersona.domainTags?.join(", ") || "";
+  const defaultStyle = formPersona.voice || formPersona.tone || formPersona.style || "";
+  const defaultContentPillars = formPersona.contentPillars?.join("\n") || "";
+  const defaultHooks = formPersona.hooks?.join("\n") || "";
+  const defaultReminders = formPersona.reminders?.join("\n") || "";
 
   return (
     <form action={formAction} className="grid gap-3 sm:grid-cols-2">
+      {isEditMode && personaId && (
+        <input type="hidden" name="personaId" value={personaId} />
+      )}
+      {avatarUrl && (
+        <input type="hidden" name="avatarUrl" value={avatarUrl} />
+      )}
+      
       <div className="sm:col-span-1">
         <Label htmlFor="persona-name" className="text-xs">
           人设名称
         </Label>
-        <Input id="persona-name" name="name" defaultValue={persona.name} required />
+        <Input id="persona-name" name="name" defaultValue={formPersona.name} required />
       </div>
       <div className="sm:col-span-1">
         <Label htmlFor="persona-alias" className="text-xs">
           别名
         </Label>
-        <Input id="persona-alias" name="alias" defaultValue={persona.alias} placeholder="角色标签" />
+        <Input id="persona-alias" name="alias" defaultValue={formPersona.alias} placeholder="角色标签" />
       </div>
       <div className="sm:col-span-2">
         <Label htmlFor="persona-tagline" className="text-xs">
@@ -54,7 +100,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         <Input
           id="persona-tagline"
           name="tagline"
-          defaultValue={persona.tagline}
+          defaultValue={formPersona.tagline}
           placeholder="个性签名"
         />
       </div>
@@ -78,7 +124,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         <Input
           id="persona-audience"
           name="audience"
-          defaultValue={persona.audience}
+          defaultValue={formPersona.audience}
           placeholder="18-28岁一二线城市潮流青年"
         />
       </div>
@@ -89,7 +135,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         <Textarea
           id="persona-background"
           name="background"
-          defaultValue={persona.background}
+          defaultValue={formPersona.background}
           placeholder="人设背景故事..."
           className="min-h-[80px] resize-y text-sm"
         />
@@ -102,7 +148,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         <Input
           id="persona-voice"
           name="voice"
-          defaultValue={persona.voice}
+          defaultValue={formPersona.voice}
           placeholder="中英夹杂的年轻化口吻"
         />
       </div>
@@ -113,7 +159,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         <Input
           id="persona-tone"
           name="tone"
-          defaultValue={persona.tone}
+          defaultValue={formPersona.tone}
           placeholder="带着微醺感的沉浸式氛围"
         />
       </div>
@@ -176,7 +222,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         <Input
           id="persona-callToAction"
           name="callToAction"
-          defaultValue={persona.callToAction}
+          defaultValue={formPersona.callToAction}
           placeholder="快标记你的夜拍瞬间,解锁同款光影装备"
         />
       </div>
@@ -187,7 +233,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         <Textarea
           id="persona-bio"
           name="bio"
-          defaultValue={persona.bio}
+          defaultValue={formPersona.bio}
           placeholder="我是穿梭在城市霓虹间的夜色捕手..."
           className="min-h-[100px] resize-y text-sm"
         />
@@ -205,7 +251,7 @@ export function PersonaSaveForm({ persona, onSuccess, onCancel }: PersonaSaveFor
         </Button>
         <Button type="submit">
           <Save className="mr-2 h-4 w-4" />
-          保存人设
+          {isEditMode ? "保存更改" : "保存人设"}
         </Button>
       </DialogFooter>
     </form>
