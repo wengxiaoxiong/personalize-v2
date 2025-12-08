@@ -1,10 +1,11 @@
 import React from "react";
-import { FileText } from "lucide-react";
+import { FileText, Clipboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type PdfUploadControlProps = {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onXhsImportClick?: () => void;
   pdfUploading: boolean;
   pdfProgress?: { stage: string; progress: number };
   selectedFileName?: string | null;
@@ -14,6 +15,7 @@ type PdfUploadControlProps = {
 export function PdfUploadControl({
   fileInputRef,
   onFileSelect,
+  onXhsImportClick,
   pdfUploading,
   pdfProgress,
   selectedFileName,
@@ -30,6 +32,7 @@ export function PdfUploadControl({
         disabled={pdfUploading || disabled}
         id="pdf-upload"
       />
+      
       <Button
         type="button"
         variant="outline"
@@ -41,6 +44,20 @@ export function PdfUploadControl({
         <FileText className="h-5 w-5" />
         {pdfUploading ? "解析中..." : "上传简历/PDF"}
       </Button>
+
+      {onXhsImportClick && (
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={onXhsImportClick}
+          disabled={pdfUploading || disabled}
+          className="flex items-center gap-2"
+        >
+          <Clipboard className="h-5 w-5" />
+          从小红书导入
+        </Button>
+      )}
 
       {pdfUploading && pdfProgress && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

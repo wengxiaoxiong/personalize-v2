@@ -233,6 +233,7 @@ const personaSchema = z.object({
   reminders: z.string().optional(),
   bio: z.string().optional(),
   callToAction: z.string().optional(),
+  avatarUrl: z.union([z.string().url(), z.literal("")]).optional(),
 });
 
 const materialSchema = z.object({
@@ -425,20 +426,32 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     ]);
 
     return {
-      personas: personas.map((p) => ({
-        id: p.id,
-        name: p.name,
-        domain: (p.domainTags as string[]) || [],
-        style:
-          typeof p.expressionStyle === "string"
-            ? p.expressionStyle
-            : Array.isArray(p.expressionStyle)
-              ? p.expressionStyle.join(" · ")
-              : "结构化表达",
-        usage: 0,
-        lastUsed: p.updatedAt.toLocaleDateString("zh-CN"),
-        avatarUrl: p.avatarUrl,
-      })),
+      personas: personas.map((p) => {
+        const professionalBackground = p.professionalBackground as ProfessionalBackground | null;
+        const expressionStyle = p.expressionStyle as ExpressionStyle;
+        const audienceRelation = p.audienceRelation as AudienceRelation | null;
+        const professionalPreferences = p.professionalPreferences as ProfessionalPreferences | null;
+
+        return {
+          id: p.id,
+          name: p.name,
+          domain: (p.domainTags as string[]) || [],
+          style: expressionStyle.style || "结构化表达",
+          usage: 0,
+          lastUsed: p.updatedAt.toLocaleDateString("zh-CN"),
+          avatarUrl: p.avatarUrl,
+          alias: professionalBackground?.alias,
+          tagline: professionalBackground?.tagline,
+          audience: audienceRelation?.audience,
+          voice: expressionStyle.voice,
+          tone: expressionStyle.tone,
+          background: professionalBackground?.background,
+          bio: professionalBackground?.bio,
+          callToAction: professionalPreferences?.callToAction,
+          contentPillars: professionalPreferences?.contentPillars || [],
+          hooks: professionalPreferences?.hooks || [],
+        };
+      }),
       posts: posts.map((post) => {
         const contentPack = post.contentPack as { title?: string; headline?: string } | null;
         const title = contentPack?.title || contentPack?.headline || post.id;
@@ -514,6 +527,7 @@ export async function createPersonaAction(
     reminders: formData.get("reminders"),
     bio: formData.get("bio"),
     callToAction: formData.get("callToAction"),
+    avatarUrl: formData.get("avatarUrl"),
   });
 
   if (!parsed.success) {
@@ -562,6 +576,7 @@ export async function createPersonaAction(
       data: {
         userId: user.id, // 始终使用当前登录用户的ID
         name: parsed.data.name,
+        avatarUrl: parsed.data.avatarUrl && parsed.data.avatarUrl.trim() ? parsed.data.avatarUrl.trim() : null,
         domainTags: parsed.data.domain.split(",").map((tag) => tag.trim()),
         professionalBackground: parsed.data.background ? {
           background: parsed.data.background,

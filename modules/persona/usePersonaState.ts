@@ -11,6 +11,7 @@ export type PersonaStateValues = {
   showSaveDialog: boolean;
   sidecarOpen: boolean;
   errors: string | null;
+  xhsAvatar: string | null; // 小红书导入的头像URL
 };
 
 export type PersonaStateApi = {
@@ -24,6 +25,7 @@ export type PersonaStateApi = {
   setShowSaveDialog: Dispatch<SetStateAction<boolean>>;
   setSidecarOpen: Dispatch<SetStateAction<boolean>>;
   setErrors: Dispatch<SetStateAction<string | null>>;
+  setXhsAvatar: Dispatch<SetStateAction<string | null>>;
   reset: () => void;
 };
 
@@ -37,6 +39,7 @@ export function usePersonaState(): PersonaStateApi {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [sidecarOpen, setSidecarOpen] = useState(false);
   const [errors, setErrors] = useState<string | null>(null);
+  const [xhsAvatar, setXhsAvatar] = useState<string | null>(null);
 
   const reset = () => {
     setStarted(false);
@@ -48,6 +51,7 @@ export function usePersonaState(): PersonaStateApi {
     setShowSaveDialog(false);
     setSidecarOpen(false);
     setErrors(null);
+    setXhsAvatar(null);
   };
 
   return {
@@ -61,6 +65,7 @@ export function usePersonaState(): PersonaStateApi {
       showSaveDialog,
       sidecarOpen,
       errors,
+      xhsAvatar,
     },
     setStarted,
     setInputValue,
@@ -71,6 +76,7 @@ export function usePersonaState(): PersonaStateApi {
     setShowSaveDialog,
     setSidecarOpen,
     setErrors,
+    setXhsAvatar,
     reset,
   };
 }

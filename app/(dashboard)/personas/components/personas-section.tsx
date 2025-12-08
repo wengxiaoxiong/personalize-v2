@@ -134,20 +134,8 @@ export function PersonasSection() {
               删除
             </Button>
           </div>
-          {deleteState.message && (
-            <div className={`text-xs mt-2 ${deleteState.ok ? "text-emerald-600" : "text-rose-500"}`}>
-              {deleteState.message}
-            </div>
-          )}
         </DialogContent>
       </Dialog>
-
-      {/* 复制状态提示 */}
-      {copyState.message && (
-        <div className={`mt-4 text-xs ${copyState.ok ? "text-emerald-600" : "text-rose-500"}`}>
-          {copyState.message}
-        </div>
-      )}
     </section>
   );
 }

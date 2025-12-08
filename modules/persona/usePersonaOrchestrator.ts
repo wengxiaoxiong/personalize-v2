@@ -4,6 +4,7 @@ import { useCompletion } from "@ai-sdk/react";
 import {
   PERSONA_GENERATE_KEYWORDS,
   PERSONA_PDF_MARKER,
+  PERSONA_XHS_MARKER,
   PERSONA_TOOL_NAME,
   buildPersonaPayload,
   parsePersonaResult,
@@ -13,6 +14,7 @@ import { useFileIngestion } from "@/modules/agent/hooks/use-file-ingestion";
 import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
 import { parsePdfToText } from "@/lib/resume-parser";
 import { parsePersonaMarkdown } from "@/lib/persona-parser";
+import { parseXiaohongshuJson, parseXiaohongshuData } from "@/lib/xiaohongshu-parser";
 import { QUESTIONS, buildFallbackPersona } from "@/app/(dashboard)/personas/components/persona-generator-helpers";
 import type { PersonaStateApi } from "./usePersonaState";
 
@@ -32,6 +34,7 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
     setShowSaveDialog,
     setSidecarOpen,
     setErrors,
+    setXhsAvatar,
     reset: resetPersonaState,
   } = personaState;
 
@@ -235,6 +238,47 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
     [handlePdfUpload, setErrors, setPdfFile]
   );
 
+  const handleXhsJsonImport = useCallback(
+    async (jsonString: string) => {
+      if (!state.started) {
+        setStarted(true);
+      }
+      setErrors(null);
+
+      try {
+        // 解析JSON
+        const xhsData = parseXiaohongshuJson(jsonString);
+        if (!xhsData) {
+          throw new Error("小红书JSON格式不正确，请检查数据格式");
+        }
+
+        // 提取avatar并保存到state
+        if (xhsData.userInfo?.avatar) {
+          setXhsAvatar(xhsData.userInfo.avatar);
+        }
+
+        // 转换为结构化文本（自然语言格式）
+        const structuredText = parseXiaohongshuData(xhsData);
+        if (!structuredText || structuredText.trim().length === 0) {
+          throw new Error("未能从小红书数据中提取到有效信息");
+        }
+
+        // 发送消息（使用标记，类似PDF处理）
+        const xhsMessageText = `${PERSONA_XHS_MARKER}\n\n${structuredText}`;
+
+        await sendMessage({
+          parts: [{ type: "text", text: xhsMessageText }],
+        });
+      } catch (err) {
+        console.error("小红书导入错误：", err);
+        const errorMessage = err instanceof Error ? err.message : "小红书数据导入失败，请重试";
+        setErrors(errorMessage);
+        throw err; // 重新抛出错误，让调用方知道导入失败
+      }
+    },
+    [sendMessage, setErrors, setStarted, setXhsAvatar, state.started]
+  );
+
   const resetWorkflow = useCallback(() => {
     setPersonaResult("");
     stopPersona();
@@ -305,6 +349,7 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
       handleOptionToggle,
       handleClearSelections,
       handleFileSelect,
+      handleXhsJsonImport,
       handlePersonaGeneration,
       openSaveDialog,
       resetWorkflow,

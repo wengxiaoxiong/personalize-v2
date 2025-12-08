@@ -12,11 +12,12 @@ import { type PersonaParseResult } from "@/lib/persona-parser";
 type PersonaSaveFormProps = {
   persona?: PersonaParseResult;
   personaId?: string;
+  avatarUrl?: string | null;
   onSuccess: (message?: string) => void;
   onCancel: () => void;
 };
 
-export function PersonaSaveForm({ persona, personaId, onSuccess, onCancel }: PersonaSaveFormProps) {
+export function PersonaSaveForm({ persona, personaId, avatarUrl, onSuccess, onCancel }: PersonaSaveFormProps) {
   const isEditMode = !!personaId;
   const [loading, setLoading] = useState(isEditMode);
   const [formPersona, setFormPersona] = useState<PersonaParseResult | null>(persona || null);
@@ -76,6 +77,9 @@ export function PersonaSaveForm({ persona, personaId, onSuccess, onCancel }: Per
     <form action={formAction} className="grid gap-3 sm:grid-cols-2">
       {isEditMode && personaId && (
         <input type="hidden" name="personaId" value={personaId} />
+      )}
+      {avatarUrl && (
+        <input type="hidden" name="avatarUrl" value={avatarUrl} />
       )}
       
       <div className="sm:col-span-1">
