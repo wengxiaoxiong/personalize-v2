@@ -512,23 +512,29 @@ export async function createPersonaAction(
     }
   }
 
+  // 辅助函数：将 FormData 的 null 值转换为 undefined（Zod optional() 需要 undefined，不接受 null）
+  const getFormValue = (key: string): string | undefined => {
+    const value = formData.get(key);
+    return value === null ? undefined : (typeof value === "string" ? value : undefined);
+  };
+
   const parsed = personaSchema.safeParse({
     name: formData.get("name"),
     domain: formData.get("domain"),
     style: formData.get("style"),
     userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
-    background: formData.get("background"),
-    audience: formData.get("audience"),
-    voice: formData.get("voice"),
-    tone: formData.get("tone"),
-    tagline: formData.get("tagline"),
-    alias: formData.get("alias"),
-    contentPillars: formData.get("contentPillars"),
-    hooks: formData.get("hooks"),
-    reminders: formData.get("reminders"),
-    bio: formData.get("bio"),
-    callToAction: formData.get("callToAction"),
-    avatarUrl: formData.get("avatarUrl"),
+    background: getFormValue("background"),
+    audience: getFormValue("audience"),
+    voice: getFormValue("voice"),
+    tone: getFormValue("tone"),
+    tagline: getFormValue("tagline"),
+    alias: getFormValue("alias"),
+    contentPillars: getFormValue("contentPillars"),
+    hooks: getFormValue("hooks"),
+    reminders: getFormValue("reminders"),
+    bio: getFormValue("bio"),
+    callToAction: getFormValue("callToAction"),
+    avatarUrl: getFormValue("avatarUrl"),
   });
 
   if (!parsed.success) {
