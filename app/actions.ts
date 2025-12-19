@@ -10,7 +10,6 @@ import { client, bucketName } from "@/lib/tos";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import type { PersonaParseResult } from "@/lib/persona-parser";
 import type { Persona } from "@/lib/generated/prisma";
-import { xiaohongshuDataSchema } from "@/lib/xiaohongshu-parser";
 
 export type PersonaSummary = {
   id?: string;
@@ -34,42 +33,9 @@ export type PersonaSummary = {
   hooks?: string[];
 };
 
-export type PostSummary = {
-  id?: string;
-  title: string;
-  persona: string;
-  platform: string;
-  status: string;
-  created: string;
-};
-
-export type RecommendationSummary = {
-  id?: string;
-  title: string;
-  source: string;
-  time: string;
-  score: string;
-  product: string;
-  persona: string;
-  platform: string;
-};
-
-export type MaterialSummary = {
-  id?: string;
-  name: string;
-  type: string;
-  sizeLabel: string;
-  createdAt?: string;
-};
-
 export type DashboardSnapshot = {
   personas: PersonaSummary[];
-  posts: PostSummary[];
-  recommendations: RecommendationSummary[];
-  materials: MaterialSummary[];
 };
-
-type MaterialKind = "document" | "image";
 
 export type ActionState = {
   ok: boolean;
@@ -161,61 +127,6 @@ const fallbackSnapshot: DashboardSnapshot = {
       badge: "热门",
     },
   ],
-  posts: [
-    {
-      title: "小红书 | 护手霜秋冬保湿测评",
-      persona: "宝妈体验官 Mia",
-      platform: "XiaoHongShu",
-      status: "待发布",
-      created: "2024-12-01 09:30",
-    },
-    {
-      title: "Instagram | Lifestyle 氛围感大片",
-      persona: "小众设计师 Leo",
-      platform: "Instagram",
-      status: "草稿",
-      created: "2024-11-29 16:10",
-    },
-    {
-      title: "LinkedIn | AI SaaS 发布公告",
-      persona: "职场达人 Jane",
-      platform: "LinkedIn",
-      status: "已发布",
-      created: "2024-11-28 10:00",
-    },
-  ],
-  recommendations: [
-    {
-      title: "环保政策落地，绿色消费热度飙升",
-      source: "36Kr",
-      time: "08:00",
-      score: "0.93",
-      product: "智能空气净化器",
-      persona: "科技测评师 Alex",
-      platform: "LinkedIn / X",
-    },
-    {
-      title: "双十二家居新品榜单出炉",
-      source: "小红书热榜",
-      time: "07:30",
-      score: "0.87",
-      product: "北欧极简落地灯",
-      persona: "小众设计师 Leo",
-      platform: "XiaoHongShu",
-    },
-  ],
-  materials: [
-    {
-      name: "产品卖点白皮书.pdf",
-      type: "document",
-      sizeLabel: "1.2MB",
-    },
-    {
-      name: "护手霜场景图.jpg",
-      type: "image",
-      sizeLabel: "840KB",
-    },
-  ],
 };
 
 const personaSchema = z.object({
@@ -237,19 +148,6 @@ const personaSchema = z.object({
   avatarUrl: z.union([z.string().url(), z.literal("")]).optional(),
 });
 
-const materialSchema = z.object({
-  name: z.string().min(2).optional(),
-  type: z.enum(["document", "image"]),
-  userId: z.string().uuid().optional(),
-});
-
-const generationSchema = z.object({
-  title: z.string().min(2),
-  persona: z.string().min(1),
-  platform: z.string().min(1),
-  content: z.string().min(10),
-  userId: z.string().uuid().optional(),
-});
 
 const authSchema = z.object({
   email: z.string().email(),
@@ -395,36 +293,14 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
       // 如果没有登录用户，返回空数据
       return {
         personas: [],
-        posts: [],
-        recommendations: [],
-        materials: [],
       };
     }
 
-    const [personas, posts, recommendations, materials] = await Promise.all([
-      prisma.persona.findMany({
-        where: { userId: user.id },
-        orderBy: { updatedAt: "desc" },
-        take: 6,
-      }),
-      prisma.contentGeneration.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { persona: true },
-      }),
-      prisma.recommendation.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { recommendedPersona: true },
-      }),
-      prisma.productMaterial.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      }),
-    ]);
+    const personas = await prisma.persona.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+      take: 6,
+    });
 
     return {
       personas: personas.map((p) => {
@@ -453,42 +329,6 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
           hooks: professionalPreferences?.hooks || [],
         };
       }),
-      posts: posts.map((post) => {
-        const contentPack = post.contentPack as { title?: string; headline?: string } | null;
-        const title = contentPack?.title || contentPack?.headline || post.id;
-        const platformList =
-          Array.isArray(post.platforms) && post.platforms.length > 0
-            ? (post.platforms as string[]).join(", ")
-            : String(post.platforms);
-
-        return {
-          id: post.id,
-          title: String(title),
-          persona: post.persona?.name || "未命名人设",
-          platform: platformList,
-          status: post.status,
-          created: post.createdAt.toISOString(),
-        };
-      }),
-      recommendations: recommendations.map((rec) => ({
-        id: rec.id,
-        title: rec.newsTitle,
-        source: rec.newsSource,
-        time: rec.bestPublishTime.toISOString(),
-        score: rec.relevanceScore.toString(),
-        product: rec.recommendedProductId || "重点产品",
-        persona: rec.recommendedPersona?.name || "推荐人设",
-        platform: Array.isArray(rec.recommendedPlatforms)
-          ? (rec.recommendedPlatforms as string[]).join(", ")
-          : String(rec.recommendedPlatforms),
-      })),
-      materials: materials.map((material) => ({
-        id: material.id,
-        name: material.fileName,
-        type: material.materialType,
-        sizeLabel: `${Number(material.fileSize) / 1024 / 1024 < 0.1 ? `${Number(material.fileSize) / 1024}KB` : `${(Number(material.fileSize) / 1024 / 1024).toFixed(1)}MB`}`,
-        createdAt: material.createdAt.toISOString(),
-      })),
     } satisfies DashboardSnapshot;
   } catch (error) {
     console.error("Failed to read dashboard snapshot", error);
@@ -616,203 +456,6 @@ export async function createPersonaAction(
   }
 }
 
-export async function createMaterialAction(
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const file = formData.get("file") as File | null;
-  const type = formData.get("type") as string | null;
-
-  if (!file) {
-    return { ok: false, message: "请选择要上传的文件" };
-  }
-
-  if (!type || (type !== "document" && type !== "image")) {
-    return { ok: false, message: "请选择素材类型（文档或图片）" };
-  }
-
-  const userIdValue = formData.get("userId");
-  let userId: string | undefined;
-  
-  if (userIdValue && typeof userIdValue === "string") {
-    const trimmed = userIdValue.trim();
-    // 验证是否为有效的 UUID 格式
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (trimmed && uuidRegex.test(trimmed)) {
-      userId = trimmed;
-    }
-  }
-  
-  const parsed = materialSchema.safeParse({
-    name: formData.get("name") || file.name,
-    type: type as "document" | "image",
-    userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
-  });
-
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message || "素材信息不完整" };
-  }
-
-  if (!dbAvailable()) {
-    return { ok: false, message: "数据库未连接" };
-  }
-
-  try {
-    // 获取当前登录用户
-    const user = await getCurrentUser();
-    if (!user) {
-      return { ok: false, message: "请先登录" };
-    }
-    
-    // 上传文件到 TOS
-    const fileExtension = file.name.split(".").pop() || "";
-    const fileName = `${randomUUID()}.${fileExtension}`;
-    const objectKey = `materials/${user.id}/${fileName}`;
-    
-    const fileBuffer = await file.arrayBuffer();
-    const fileSize = fileBuffer.byteLength;
-
-    await client.putObject({
-      bucket: bucketName,
-      key: objectKey,
-      body: Buffer.from(fileBuffer),
-      contentType: file.type || (parsed.data.type === "document" ? "application/pdf" : "image/jpeg"),
-    });
-
-    // 构建 TOS URL（根据你的 TOS 配置调整）
-    const tosUrl = `https://${bucketName}.tos-cn-shanghai.volces.com/${objectKey}`;
-
-    // 保存到数据库
-    await prisma.productMaterial.create({
-      data: {
-        userId: user.id, // 始终使用当前登录用户的ID
-        materialType: parsed.data.type as MaterialKind,
-        filePath: tosUrl,
-        fileName: parsed.data.name || file.name,
-        fileSize: BigInt(fileSize),
-        mimeType: file.type || (parsed.data.type === "document" ? "application/pdf" : "image/jpeg"),
-        parsedContent: {},
-      },
-    });
-
-    revalidatePath("/");
-    revalidatePath("/dashboard/materials");
-    return { ok: true, message: "素材已上传并保存" };
-  } catch (error) {
-    console.error("Create material failed", error);
-    return { ok: false, message: "上传素材失败，请稍后再试" };
-  }
-}
-
-export async function recordGenerationAction(
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const userIdValue = formData.get("userId");
-  let userId: string | undefined;
-  
-  if (userIdValue && typeof userIdValue === "string") {
-    const trimmed = userIdValue.trim();
-    // 验证是否为有效的 UUID 格式
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (trimmed && uuidRegex.test(trimmed)) {
-      userId = trimmed;
-    }
-  }
-  
-  const parsed = generationSchema.safeParse({
-    title: formData.get("title"),
-    persona: formData.get("persona"),
-    platform: formData.get("platform"),
-    content: formData.get("content"),
-    userId: userId, // 如果无效或不存在，传递 undefined，让 .optional() 生效
-  });
-
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message || "内容不完整" };
-  }
-
-  if (!dbAvailable()) {
-    return { ok: false, message: "数据库未连接" };
-  }
-
-  try {
-    // 获取当前登录用户
-    const user = await getCurrentUser();
-    if (!user) {
-      return { ok: false, message: "请先登录" };
-    }
-
-    // 查找人设，确保只能使用属于当前用户的人设
-    const existingPersona =
-      (parsed.data.persona.length === 36
-        ? await prisma.persona.findFirst({
-            where: { id: parsed.data.persona, userId: user.id },
-          })
-        : await prisma.persona.findFirst({
-            where: { userId: user.id, name: parsed.data.persona },
-          })) ?? undefined;
-
-    const persona =
-      existingPersona ||
-      (await prisma.persona.create({
-        data: {
-          userId: user.id,
-          name: parsed.data.persona,
-          domainTags: ["社媒", "营销"],
-          expressionStyle: "AI 生成文案",
-        },
-      }));
-
-    const stylePack = await prisma.stylePack.upsert({
-      where: { id: "default-style-pack" },
-      update: {},
-      create: {
-        id: "default-style-pack",
-        name: "默认风格包",
-        category: "通用",
-        imageStyles: { palette: "vivid" },
-        tone: "balanced",
-        recommendedTags: ["AI", "营销"],
-        isBuiltin: true,
-      },
-    });
-
-    const material = await prisma.productMaterial.upsert({
-      where: { id: "demo-material" },
-      update: {},
-      create: {
-        id: "demo-material",
-        userId: user.id,
-        materialType: "document",
-        filePath: "/uploads/demo.pdf",
-        fileName: "Demo PDF",
-        fileSize: BigInt(2048),
-        mimeType: "application/pdf",
-        parsedContent: { summary: "AI 生成内容" },
-      },
-    });
-
-    await prisma.contentGeneration.create({
-      data: {
-        userId: user.id,
-        productMaterialId: material.id,
-        personaId: persona.id,
-        stylePackId: stylePack.id,
-        platforms: [parsed.data.platform],
-        contentPack: { title: parsed.data.title, body: parsed.data.content },
-        status: "success",
-        completedAt: new Date(),
-      },
-    });
-
-    revalidatePath("/");
-    return { ok: true, message: "生成内容已落库" };
-  } catch (error) {
-    console.error("Record generation failed", error);
-    return { ok: false, message: "记录生成结果失败" };
-  }
-}
 
 // 获取单个persona数据（用于编辑）
 export async function getPersonaById(personaId: string) {
@@ -1168,98 +811,5 @@ export async function deletePersonaAction(
   } catch (error) {
     console.error("Delete persona failed", error);
     return { ok: false, message: "删除人设失败，请稍后再试" };
-  }
-}
-
-/**
- * 保存小红书导入的JSON数据到数据库
- * 使用 Zod schema 进行严格验证，数据结构不符合预期则不保存
- */
-export async function saveXiaohongshuPostAction(
-  rawData: unknown
-): Promise<ActionState> {
-  console.log("saveXiaohongshuPostAction called with data:", JSON.stringify(rawData).substring(0, 200));
-  
-  // 使用 Zod schema 验证数据结构
-  const validationResult = xiaohongshuDataSchema.safeParse(rawData);
-  
-  if (!validationResult.success) {
-    const errorMessages = validationResult.error.issues.map((issue) => {
-      const path = issue.path.length > 0 ? issue.path.join(".") : "根对象";
-      return `${path}: ${issue.message}`;
-    }).join("; ");
-    console.error("小红书数据结构验证失败:", errorMessages);
-    console.error("详细错误:", validationResult.error.format());
-    return { 
-      ok: false, 
-      message: `数据结构不符合预期: ${errorMessages}` 
-    };
-  }
-
-  const validatedData = validationResult.data;
-  
-  if (!dbAvailable()) {
-    console.error("数据库未连接");
-    return { ok: false, message: "数据库未连接" };
-  }
-
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      console.error("用户未登录");
-      return { ok: false, message: "请先登录" };
-    }
-
-    console.log("当前用户ID:", user.id);
-
-    // 提取常用字段方便查询
-    const userInfo = validatedData.userInfo;
-    const nickname = userInfo?.nickname || null;
-    const redId = userInfo?.redId || null;
-    const avatar = userInfo?.avatar || null;
-    const description = userInfo?.description || null;
-    const feedCount = validatedData.count ?? validatedData.feeds?.length ?? null;
-    const sourceUrl = validatedData.url || null;
-
-    console.log("准备保存数据:", {
-      userId: user.id,
-      nickname,
-      redId,
-      feedCount,
-    });
-
-    // 检查 Prisma 客户端是否包含 personaPost 模型
-    if (!prisma.personaPost) {
-      const errorMsg = "Prisma 客户端未包含 personaPost 模型。请运行: npx prisma generate";
-      console.error(errorMsg);
-      return { ok: false, message: errorMsg };
-    }
-
-    // 保存到数据库 - validatedData 已经通过 Zod 验证，类型安全
-    // 将数据转换为 Prisma 接受的 JSON 格式（序列化后再解析以确保类型正确）
-    const jsonData = JSON.parse(JSON.stringify(validatedData));
-    
-    const result = await prisma.personaPost.create({
-      data: {
-        userId: user.id,
-        rawData: jsonData, // 已验证并序列化的数据
-        nickname,
-        redId,
-        avatar,
-        description,
-        feedCount,
-        sourceUrl,
-      },
-    });
-
-    console.log("小红书数据已保存，ID:", result.id);
-    return { ok: true, message: "小红书数据已保存" };
-  } catch (error) {
-    console.error("Save Xiaohongshu post failed", error);
-    if (error instanceof Error) {
-      console.error("错误详情:", error.message);
-      console.error("错误堆栈:", error.stack);
-    }
-    return { ok: false, message: `保存小红书数据失败: ${error instanceof Error ? error.message : "未知错误"}` };
   }
 }

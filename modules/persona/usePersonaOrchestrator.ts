@@ -15,7 +15,6 @@ import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
 import { parsePdfToText } from "@/lib/resume-parser";
 import { parsePersonaMarkdown } from "@/lib/persona-parser";
 import { parseXiaohongshuJson, parseXiaohongshuData } from "@/lib/xiaohongshu-parser";
-import { saveXiaohongshuPostAction } from "@/app/actions";
 import { QUESTIONS, buildFallbackPersona } from "@/app/(dashboard)/personas/components/persona-generator-helpers";
 import type { PersonaStateApi } from "./usePersonaState";
 
@@ -256,29 +255,6 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
         // 提取avatar并保存到state
         if (xhsData.userInfo?.avatar) {
           setXhsAvatar(xhsData.userInfo.avatar);
-        }
-
-        // 保存原始JSON数据到数据库（异步，不阻塞主流程）
-        console.log("准备保存小红书数据到数据库，数据预览:", {
-          hasUserInfo: !!xhsData.userInfo,
-          nickname: xhsData.userInfo?.nickname,
-          redId: xhsData.userInfo?.redId,
-          feedCount: xhsData.feeds?.length || xhsData.count,
-        });
-        
-        try {
-          const saveResult = await saveXiaohongshuPostAction(xhsData);
-          if (!saveResult.ok) {
-            console.warn("保存小红书数据到数据库失败:", saveResult.message);
-          } else {
-            console.log("✅ 小红书数据已成功保存到数据库");
-          }
-        } catch (err) {
-          console.error("保存小红书数据到数据库异常:", err);
-          if (err instanceof Error) {
-            console.error("异常详情:", err.message, err.stack);
-          }
-          // 不抛出错误，因为保存失败不应该影响导入流程
         }
 
         // 转换为结构化文本（自然语言格式）
