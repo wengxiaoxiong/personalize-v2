@@ -1,17 +1,14 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
 import { useCompletion } from "@ai-sdk/react";
-import { Sparkles, Copy, Loader2 } from "lucide-react";
+import { Sparkles, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useDashboard } from "@/components/providers/dashboard-provider";
-import { recordGenerationAction, type ActionState } from "@/app/actions";
-import { cn } from "@/lib/utils";
 
 const platforms: { label: string; value: string }[] = [
   { label: "小红书", value: "XiaoHongShu" },
@@ -32,12 +29,6 @@ export function AIGenerator() {
     tone,
     setTone,
   } = useDashboard();
-
-  const [generationState, generationFormAction] = useActionState<ActionState, FormData>(
-    recordGenerationAction,
-    { ok: false, message: "" },
-  );
-  const [saving, startSaving] = useTransition();
 
   const personaChips =
     snapshot.personas.length > 0
@@ -140,27 +131,27 @@ export function AIGenerator() {
 
         {error && <p className="text-xs text-rose-500">生成失败：{error.message}</p>}
 
-        <form action={generationFormAction} className="space-y-2">
-          <input type="hidden" name="title" value={`${selectedPlatform.label} · ${topic}`} />
-          <input type="hidden" name="persona" value={selectedPersona} />
-          <input type="hidden" name="platform" value={selectedPlatform.value} />
+        <div className="space-y-2">
           <Textarea
-            name="content"
             value={completion}
             onChange={(e) => setCompletion(e.target.value)}
             className="h-44 resize-none"
             placeholder="生成内容预览..."
           />
-          <Button type="submit" disabled={saving} variant="outline" className="w-full">
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
-            保存生成结果
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              if (completion) {
+                navigator.clipboard.writeText(completion);
+              }
+            }}
+            disabled={!completion}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            复制到剪贴板
           </Button>
-          {generationState.message && (
-            <p className={cn("text-xs", generationState.ok ? "text-emerald-600" : "text-rose-500")}>
-              {generationState.message}
-            </p>
-          )}
-        </form>
+        </div>
       </CardContent>
     </Card>
   );

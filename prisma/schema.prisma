@@ -17,17 +17,6 @@ enum SubscriptionPlan {
   business
 }
 
-enum MaterialType {
-  document
-  image
-}
-
-enum GenerationStatus {
-  pending
-  success
-  failed
-}
-
 model User {
   id                  String    @id @default(uuid()) @db.Uuid
   email               String    @unique
@@ -39,34 +28,11 @@ model User {
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  productMaterials    ProductMaterial[]
-  personas         Persona[]
-  contentGenerations  ContentGeneration[]
-  recommendations     Recommendation[]
-  personaPosts        PersonaPost[]
+  personas            Persona[]
 
   @@map("users")
 }
 
-model ProductMaterial {
-  id            String   @id @default(uuid()) @db.Uuid
-  userId        String   @map("user_id") @db.Uuid
-  materialType  MaterialType @map("material_type")
-  filePath      String   @map("file_path")
-  fileName      String   @map("file_name")
-  fileSize      BigInt   @map("file_size")
-  mimeType      String   @map("mime_type")
-  parsedContent Json?    @map("parsed_content")
-  isParsed      Boolean  @default(false) @map("is_parsed")
-  parsedAt      DateTime? @map("parsed_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  user                 User              @relation(fields: [userId], references: [id])
-  contentGenerations   ContentGeneration[]
-  recommendations      Recommendation[]
-
-  @@map("product_materials")
-}
 
 model Persona {
   id                        String   @id @default(uuid()) @db.Uuid
@@ -84,87 +50,10 @@ model Persona {
   updatedAt                 DateTime @updatedAt @map("updated_at")
 
   user                User                @relation(fields: [userId], references: [id])
-  contentGenerations  ContentGeneration[]
-  recommendations     Recommendation[]
 
   @@map("kos_personas")
 }
 
-model StylePack {
-  id               String   @id @default(uuid()) @db.Uuid
-  name             String
-  category         String
-  imageStyles      Json     @map("image_styles")
-  tone             String
-  layoutReference  String?  @map("layout_reference")
-  recommendedTags  Json     @default("[]") @map("recommended_tags")
-  isBuiltin        Boolean  @default(true) @map("is_builtin")
-  createdAt        DateTime @default(now()) @map("created_at")
 
-  contentGenerations ContentGeneration[]
 
-  @@map("style_packs")
-}
 
-model ContentGeneration {
-  id                 String   @id @default(uuid()) @db.Uuid
-  userId             String   @map("user_id") @db.Uuid
-  productMaterialId  String   @map("product_material_id") @db.Uuid
-  personaId       String   @map("kos_persona_id") @db.Uuid
-  stylePackId        String   @map("style_pack_id") @db.Uuid
-  platforms          Json
-  contentPack        Json     @map("content_pack")
-  status             GenerationStatus @default(pending)
-  createdAt          DateTime @default(now()) @map("created_at")
-  completedAt        DateTime? @map("completed_at")
-
-  user            User            @relation(fields: [userId], references: [id])
-  productMaterial ProductMaterial @relation(fields: [productMaterialId], references: [id])
-  persona      Persona      @relation(fields: [personaId], references: [id])
-  stylePack       StylePack       @relation(fields: [stylePackId], references: [id])
-
-  @@map("content_generations")
-}
-
-model Recommendation {
-  id                       String   @id @default(uuid()) @db.Uuid
-  userId                   String   @map("user_id") @db.Uuid
-  newsTitle                String   @map("news_title")
-  newsSource               String   @map("news_source")
-  newsUrl                  String   @map("news_url")
-  hotKeywords              Json     @default("[]") @map("hot_keywords")
-  recommendedProductId     String?  @map("recommended_product_id") @db.Uuid
-  recommendedPersonaId     String?  @map("recommended_persona_id") @db.Uuid
-  recommendedPlatforms     Json     @default("[]") @map("recommended_platforms")
-  bestPublishTime          DateTime @map("best_publish_time")
-  relevanceScore           Decimal  @map("relevance_score") @db.Decimal(3, 2)
-  contentPreview           Json?    @map("content_preview")
-  isUsed                   Boolean  @default(false) @map("is_used")
-  createdAt                DateTime @default(now()) @map("created_at")
-
-  user              User             @relation(fields: [userId], references: [id])
-  recommendedProduct ProductMaterial? @relation(fields: [recommendedProductId], references: [id])
-  recommendedPersona Persona?      @relation(fields: [recommendedPersonaId], references: [id])
-
-  @@map("recommendations")
-}
-
-model PersonaPost {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @map("user_id") @db.Uuid
-  rawData           Json     @map("raw_data")
-  nickname          String?  @map("nickname")
-  redId             String?  @map("red_id")
-  avatar            String?  @map("avatar")
-  description       String?  @map("description")
-  feedCount         Int?     @map("feed_count")
-  sourceUrl         String?  @map("source_url")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  user              User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([redId])
-  @@map("persona_posts")
-}
