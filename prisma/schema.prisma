@@ -40,7 +40,7 @@ model User {
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
   productMaterials    ProductMaterial[]
-  kosPersonas         KosPersona[]
+  personas         Persona[]
   contentGenerations  ContentGeneration[]
   recommendations     Recommendation[]
   personaPosts        PersonaPost[]
@@ -68,7 +68,7 @@ model ProductMaterial {
   @@map("product_materials")
 }
 
-model KosPersona {
+model Persona {
   id                        String   @id @default(uuid()) @db.Uuid
   userId                    String   @map("user_id") @db.Uuid
   name                      String
@@ -110,7 +110,7 @@ model ContentGeneration {
   id                 String   @id @default(uuid()) @db.Uuid
   userId             String   @map("user_id") @db.Uuid
   productMaterialId  String   @map("product_material_id") @db.Uuid
-  kosPersonaId       String   @map("kos_persona_id") @db.Uuid
+  personaId       String   @map("kos_persona_id") @db.Uuid
   stylePackId        String   @map("style_pack_id") @db.Uuid
   platforms          Json
   contentPack        Json     @map("content_pack")
@@ -120,7 +120,7 @@ model ContentGeneration {
 
   user            User            @relation(fields: [userId], references: [id])
   productMaterial ProductMaterial @relation(fields: [productMaterialId], references: [id])
-  kosPersona      KosPersona      @relation(fields: [kosPersonaId], references: [id])
+  persona      Persona      @relation(fields: [personaId], references: [id])
   stylePack       StylePack       @relation(fields: [stylePackId], references: [id])
 
   @@map("content_generations")
@@ -144,7 +144,7 @@ model Recommendation {
 
   user              User             @relation(fields: [userId], references: [id])
   recommendedProduct ProductMaterial? @relation(fields: [recommendedProductId], references: [id])
-  recommendedPersona KosPersona?      @relation(fields: [recommendedPersonaId], references: [id])
+  recommendedPersona Persona?      @relation(fields: [recommendedPersonaId], references: [id])
 
   @@map("recommendations")
 }

@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db";
 import { client, bucketName } from "@/lib/tos";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import type { PersonaParseResult } from "@/lib/persona-parser";
-import type { KosPersona } from "@/lib/generated/prisma";
+import type { Persona } from "@/lib/generated/prisma";
 import { xiaohongshuDataSchema } from "@/lib/xiaohongshu-parser";
 
 export type PersonaSummary = {
@@ -402,7 +402,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     }
 
     const [personas, posts, recommendations, materials] = await Promise.all([
-      prisma.kosPersona.findMany({
+      prisma.persona.findMany({
         where: { userId: user.id },
         orderBy: { updatedAt: "desc" },
         take: 6,
@@ -411,7 +411,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
         where: { userId: user.id },
         orderBy: { createdAt: "desc" },
         take: 5,
-        include: { kosPersona: true },
+        include: { persona: true },
       }),
       prisma.recommendation.findMany({
         where: { userId: user.id },
@@ -464,7 +464,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
         return {
           id: post.id,
           title: String(title),
-          persona: post.kosPersona?.name || "未命名人设",
+          persona: post.persona?.name || "未命名人设",
           platform: platformList,
           status: post.status,
           created: post.createdAt.toISOString(),
@@ -579,7 +579,7 @@ export async function createPersonaAction(
     const hooks = parseArrayField(parsed.data.hooks);
     const reminders = parseArrayField(parsed.data.reminders);
 
-    await prisma.kosPersona.create({
+    await prisma.persona.create({
       data: {
         userId: user.id, // 始终使用当前登录用户的ID
         name: parsed.data.name,
@@ -746,16 +746,16 @@ export async function recordGenerationAction(
     // 查找人设，确保只能使用属于当前用户的人设
     const existingPersona =
       (parsed.data.persona.length === 36
-        ? await prisma.kosPersona.findFirst({
+        ? await prisma.persona.findFirst({
             where: { id: parsed.data.persona, userId: user.id },
           })
-        : await prisma.kosPersona.findFirst({
+        : await prisma.persona.findFirst({
             where: { userId: user.id, name: parsed.data.persona },
           })) ?? undefined;
 
     const persona =
       existingPersona ||
-      (await prisma.kosPersona.create({
+      (await prisma.persona.create({
         data: {
           userId: user.id,
           name: parsed.data.persona,
@@ -797,7 +797,7 @@ export async function recordGenerationAction(
       data: {
         userId: user.id,
         productMaterialId: material.id,
-        kosPersonaId: persona.id,
+        personaId: persona.id,
         stylePackId: stylePack.id,
         platforms: [parsed.data.platform],
         contentPack: { title: parsed.data.title, body: parsed.data.content },
@@ -826,7 +826,7 @@ export async function getPersonaById(personaId: string) {
       return null;
     }
 
-    const persona = await prisma.kosPersona.findFirst({
+    const persona = await prisma.persona.findFirst({
       where: {
         id: personaId,
         userId: user.id, // 确保只能获取当前用户的人设
@@ -866,7 +866,7 @@ type ProfessionalPreferences = {
 };
 
 // 将数据库格式转换为 PersonaParseResult 格式（后端处理）
-function convertDbPersonaToParseResult(dbPersona: KosPersona): PersonaParseResult {
+function convertDbPersonaToParseResult(dbPersona: Persona): PersonaParseResult {
   const domainTags = Array.isArray(dbPersona.domainTags) 
     ? (dbPersona.domainTags as string[]) 
     : [];
@@ -909,7 +909,7 @@ export async function getPersonaForEdit(personaId: string): Promise<PersonaParse
       return null;
     }
 
-    const persona = await prisma.kosPersona.findFirst({
+    const persona = await prisma.persona.findFirst({
       where: {
         id: personaId,
         userId: user.id, // 确保只能获取当前用户的人设
@@ -969,7 +969,7 @@ export async function updatePersonaAction(
     }
 
     // 检查人设是否存在且属于当前用户
-    const existingPersona = await prisma.kosPersona.findFirst({
+    const existingPersona = await prisma.persona.findFirst({
       where: {
         id: personaId,
         userId: user.id,
@@ -1005,7 +1005,7 @@ export async function updatePersonaAction(
     const hooks = parseArrayField(parsed.data.hooks);
     const reminders = parseArrayField(parsed.data.reminders);
 
-    await prisma.kosPersona.update({
+    await prisma.persona.update({
       where: { id: personaId },
       data: {
         name: parsed.data.name,
@@ -1063,7 +1063,7 @@ export async function copyPersonaAction(
     }
 
     // 获取原人设数据
-    const originalPersona = await prisma.kosPersona.findFirst({
+    const originalPersona = await prisma.persona.findFirst({
       where: {
         id: personaId,
         userId: user.id,
@@ -1085,7 +1085,7 @@ export async function copyPersonaAction(
     const professionalPreferences = originalPersona.professionalPreferences as ProfessionalPreferences | null;
 
     // 创建新的人设，复制所有字段
-    await prisma.kosPersona.create({
+    await prisma.persona.create({
       data: {
         userId: user.id,
         name: `${originalPersona.name} (副本)`,
@@ -1146,7 +1146,7 @@ export async function deletePersonaAction(
     }
 
     // 检查人设是否存在且属于当前用户
-    const existingPersona = await prisma.kosPersona.findFirst({
+    const existingPersona = await prisma.persona.findFirst({
       where: {
         id: personaId,
         userId: user.id,
@@ -1158,7 +1158,7 @@ export async function deletePersonaAction(
     }
 
     // 删除人设
-    await prisma.kosPersona.delete({
+    await prisma.persona.delete({
       where: { id: personaId },
     });
 
