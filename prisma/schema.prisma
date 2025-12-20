@@ -18,21 +18,58 @@ enum SubscriptionPlan {
 }
 
 model User {
-  id                  String    @id @default(uuid()) @db.Uuid
-  email               String    @unique
-  passwordHash        String    @map("password_hash")
-  username            String    @unique
+  id                  String           @id @default(uuid()) @db.Uuid
+  email               String           @unique
+  passwordHash        String           @map("password_hash")
+  username            String           @unique
   subscriptionPlan    SubscriptionPlan @default(free) @map("subscription_plan")
-  subscriptionStart   DateTime? @map("subscription_start")
-  subscriptionEnd     DateTime? @map("subscription_end")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-
+  subscriptionStart   DateTime?        @map("subscription_start")
+  subscriptionEnd     DateTime?        @map("subscription_end")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
   personas            Persona[]
-
+  projects            Project[]
+  
   @@map("users")
 }
 
+model Project {
+  id                  String          @id @default(uuid()) @db.Uuid
+  userId              String          @map("user_id") @db.Uuid
+  name                String
+  // metadata 可以存储 AI 总结后的知识库信息
+  // 例如: { "summary": "...", "keyPoints": [...], "categories": [...] }
+  metadata            Json?           @map("metadata")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assets              ProjectAsset[]
+  
+  @@map("projects")
+}
+
+model ProjectAsset {
+  id                  String          @id @default(uuid()) @db.Uuid
+  projectId           String          @map("project_id") @db.Uuid
+  name                String          // 文件名
+  tosObjectKey        String          @map("tos_object_key") // TOS 存储路径
+  // metadata 可以存储:
+  // { 
+  //   "fileType": "pdf|docx|txt",
+  //   "fileSize": 1024,
+  //   "textContent": "从 PDF 提取的纯文本内容",
+  //   "extractedAt": "2024-01-01T00:00:00Z",
+  //   "aiSummary": "AI 对这个文档的总结"
+  // }
+  metadata            Json?           @map("metadata")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  
+  project             Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("project_assets")
+}
 
 model Persona {
   id                        String   @id @default(uuid()) @db.Uuid
@@ -48,12 +85,9 @@ model Persona {
   templateCategory          String?  @map("template_category")
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt                 DateTime @updatedAt @map("updated_at")
-
-  user                User                @relation(fields: [userId], references: [id])
-
+  
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@map("personas")
 }
-
-
-
 
