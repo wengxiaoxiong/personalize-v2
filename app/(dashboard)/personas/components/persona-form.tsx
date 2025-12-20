@@ -55,7 +55,7 @@ export function PersonaForm({ compact = false }: { compact?: boolean }) {
       <CardContent className="p-6 text-center sm:p-12">
         <Users className="mx-auto h-12 w-12 text-muted-foreground sm:h-16 sm:w-16" />
         <h4 className="mt-4 text-base font-semibold sm:text-lg">还没有创建人设</h4>
-        <p className="mt-2 text-xs text-muted-foreground sm:text-sm">创建您的第一个 KOS 人设，开始生成个性化内容</p>
+        <p className="mt-2 text-xs text-muted-foreground sm:text-sm">创建您的第一个  人设，开始生成个性化内容</p>
         <form action={formAction} className="mx-auto mt-6 max-w-2xl space-y-3 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-2">
           <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[140px]">
             <Label htmlFor="name" className="sr-only">人设名称</Label>

@@ -51,7 +51,7 @@ export const buildPersonaPayload = (messages: UIMessage[]) => {
 
     return {
       brief: sourceText + (userSupplements ? `\n\n用户补充需求：\n${userSupplements}` : ""),
-      goal: `基于导入的${sourceType}内容和用户补充的需求，生成一个可直接用于 KOS dashboard 的人设模板，并突出互动性。`,
+      goal: `基于导入的${sourceType}内容和用户补充的需求，生成一个可直接用于  dashboard 的人设模板，并突出互动性。`,
     };
   }
 

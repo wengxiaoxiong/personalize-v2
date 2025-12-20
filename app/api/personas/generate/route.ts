@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       finalBrief = brief.trim();
       finalGoal = goal && typeof goal === "string" 
         ? goal.trim() 
-        : "基于上传的PDF内容，生成一个可直接用于 KOS dashboard 的人设模板，并突出互动性。";
+        : "基于上传的PDF内容，生成一个可直接用于  dashboard 的人设模板，并突出互动性。";
     } 
     // 模式 1：从对话历史中提取
     else if (messages && Array.isArray(messages) && messages.length > 0) {
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 目标受众：${userAnswers[2] || "未说明"}；
 内容领域：${userAnswers[3] || "未说明"}；
 平台要求与互动需求：${userAnswers[4] || "未说明"}`;
-      finalGoal = "打造一位可复用的 KOS 人设，包含内容方向与表达策略，适配用户指定的平台和受众。";
+      finalGoal = "打造一位可复用的  人设，包含内容方向与表达策略，适配用户指定的平台和受众。";
     } else {
       return NextResponse.json(
         { success: false, error: "请提供对话历史或直接提供人设需求描述" },
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
         );
     }
 
-    const systemPrompt = `You are an expert KOS persona strategist who writes bilingual Markdown.
+    const systemPrompt = `You are an expert  persona strategist who writes bilingual Markdown.
 Output MUST strictly follow this template so the frontend parser can work.
 Do NOT use bold (**), italics, or Markdown tables. Every field should live on its own line.
 

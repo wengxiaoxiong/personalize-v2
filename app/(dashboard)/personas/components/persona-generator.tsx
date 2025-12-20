@@ -216,7 +216,7 @@ export function PersonaGenerator() {
       ) : (
         <div className="flex items-center justify-center min-h-[calc(100vh-220px)]">
           <div className="w-full max-w-2xl mx-auto space-y-6 px-4">
-            <h2 className="text-2xl md:text-3xl font-semibold text-center text-foreground">开始构建新的KOS人设</h2>
+            <h2 className="text-2xl md:text-3xl font-semibold text-center text-foreground">开始构建新的人设</h2>
             <div className="space-y-4">
               <PdfUploadControl {...pdfUploadProps} />
               <AgentPromptInput
@@ -224,7 +224,7 @@ export function PersonaGenerator() {
                 onChange={setInputValue}
                 onSubmit={handleSubmit}
                 status={chat.status}
-                placeholder="在这里输入你的需求，描述你想要构建的KOS人设..."
+                placeholder="在这里输入你的需求，描述你想要构建的人设..."
                 disabled={pdf.uploading}
                 submitDisabled={pdf.uploading || !persona.inputValue.trim()}
                 textareaClassName="min-h-[200px] md:min-h-[240px] text-base"

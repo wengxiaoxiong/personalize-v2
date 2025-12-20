@@ -28,7 +28,7 @@
 | parsed_at | TIMESTAMP | 解析时间 |  |
 | created_at | TIMESTAMP | 创建时间 | 默认 CURRENT_TIMESTAMP |
 
-## 3. KOS人设表 (kos_personas)
+## 3. 人设表 (_personas)
 | 字段名 | 类型 | 描述 | 约束 |
 |-------|------|------|------|
 | id | UUID | 人设唯一标识 | 主键，默认生成 |
@@ -51,7 +51,7 @@
 | id | UUID | 生成记录唯一标识 | 主键，默认生成 |
 | user_id | UUID | 所属用户ID | 外键 (users.id) |
 | product_material_id | UUID | 关联产品素材ID | 外键 (product_materials.id) |
-| kos_persona_id | UUID | 关联KOS人设ID | 外键 (kos_personas.id) |
+| _persona_id | UUID | 关联人设ID | 外键 (_personas.id) |
 | style_pack_id | UUID | 关联风格包ID | 外键 (style_packs.id) |
 | platforms | JSON | 生成平台列表 | 非空 |
 | content_pack | JSON | 生成的内容包 | 非空 |
@@ -82,7 +82,7 @@
 | news_url | VARCHAR(500) | 新闻URL | 非空 |
 | hot_keywords | JSON | 热点关键词 | 非空，默认 [] |
 | recommended_product_id | UUID | 推荐关联产品ID | 外键 (product_materials.id) |
-| recommended_persona_id | UUID | 推荐关联人设ID | 外键 (kos_personas.id) |
+| recommended_persona_id | UUID | 推荐关联人设ID | 外键 (_personas.id) |
 | recommended_platforms | JSON | 推荐发布平台 | 非空，默认 [] |
 | best_publish_time | TIMESTAMP | 最佳发布时间 | 非空 |
 | relevance_score | DECIMAL(3,2) | 关联度评分 (0-1) | 非空 |
@@ -94,12 +94,12 @@
 ```mermaid
 erDiagram
     users ||--o{ product_materials : "上传"
-    users ||--o{ kos_personas : "创建"
+    users ||--o{ _personas : "创建"
     users ||--o{ content_generations : "生成"
     users ||--o{ recommendations : "推荐"
     product_materials ||--o{ content_generations : "用于"
-    kos_personas ||--o{ content_generations : "用于"
+    _personas ||--o{ content_generations : "用于"
     style_packs ||--o{ content_generations : "用于"
     product_materials ||--o{ recommendations : "关联"
-    kos_personas ||--o{ recommendations : "关联"
+    _personas ||--o{ recommendations : "关联"
 ```

@@ -33,8 +33,7 @@ function MaskIcon() {
 
 const navItems = [
   { href: "/dashboard", label: "工作台", icon: Home },
-  { href: "/personas", label: "KOS 人设库", icon: MaskIcon },
-  { href: "/generate", label: "内容生成", icon: PenLine },
+  { href: "/personas", label: " 人设库", icon: MaskIcon },
 ];
 
 export function DashboardSidebar() {

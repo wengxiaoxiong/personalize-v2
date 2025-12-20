@@ -17,7 +17,7 @@ export function LandingHero() {
           只需一键生成
         </h1>
         <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
-          上传 PDF 或产品图，选择「KOS人设」，自动生成小红书、Instagram、LinkedIn 等多平台原生内容。让品牌拥有统一而多元的人格。
+          上传 PDF 或产品图，选择「人设」，自动生成小红书、Instagram、LinkedIn 等多平台原生内容。让品牌拥有统一而多元的人格。
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Button size="lg" asChild>

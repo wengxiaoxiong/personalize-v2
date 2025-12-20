@@ -51,7 +51,7 @@ model Persona {
 
   user                User                @relation(fields: [userId], references: [id])
 
-  @@map("kos_personas")
+  @@map("personas")
 }
 
 
