@@ -15,7 +15,7 @@ import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
 import { parsePdfToText } from "@/lib/resume-parser";
 import { parsePersonaMarkdown } from "@/lib/persona-parser";
 import { parseXiaohongshuJson, parseXiaohongshuData } from "@/lib/xiaohongshu-parser";
-import { QUESTIONS, buildFallbackPersona } from "@/app/(dashboard)/personas/components/persona-generator-helpers";
+import { QUESTIONS, buildFallbackPersona } from "@/app/(dashboard)/(personas)/components/persona-generator-helpers";
 import type { PersonaStateApi } from "./usePersonaState";
 
 type UsePersonaOrchestratorOptions = {
@@ -42,7 +42,7 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
   const isFirstLoad = useRef(true);
 
   const { messages, sendMessage, status, error: chatError, setMessages, reset: resetChatState } = useAgentChat({
-    api: "/api/chat",
+    api: "/api/personas-agent",
     model: "deepseek/deepseek-chat",
   });
 
@@ -54,7 +54,7 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
     error: personaError,
     setCompletion: setPersonaResult,
   } = useCompletion({
-    api: "/api/personas/generate",
+    api: "/api/personas-generate",
     streamProtocol: "text",
     experimental_throttle: 50,
     onError: (err) => {

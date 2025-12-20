@@ -1,7 +1,7 @@
 "use client";
 
 import { DashboardHeader } from "@/app/(dashboard)/components/dashboard-header";
-import { PersonasSection } from "@/app/(dashboard)/personas/components/personas-section";
+import { PersonasSection } from "@/app/(dashboard)/(personas)/components/personas-section";
 
 export default function DashboardPage() {
   return (

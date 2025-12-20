@@ -17,7 +17,7 @@
     error,
     setCompletion,
   } = useCompletion({
-    api: "/api/personas/generate",
+    api: "/api/personas-generate",
     streamProtocol: "text",
     experimental_throttle: 50,
     onFinish: (_prompt, text) => setFinalPersona(parsePersonaResult(text ?? "")),

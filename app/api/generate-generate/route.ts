@@ -1,4 +1,4 @@
-// app/api/personas/generate/route.ts
+
 import { deepseek } from "@ai-sdk/deepseek";
 import { ModelMessage, streamText } from "ai"; // 1. 引入标准类型
 import { NextResponse } from "next/server";
