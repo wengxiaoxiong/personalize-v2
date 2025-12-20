@@ -6,7 +6,7 @@
 - Tailwind CSS
 - shadcn/ui components
 - Vercel AI SDK for AI integrations (preferred for streaming)
-- Server Actions for form handling and mutations
+- Server Actions for 
 
 ## Communication Patterns
 - Use Server Actions for all server-side mutations and data fetching unless streaming is required.

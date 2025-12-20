@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { generateText } from "ai";
 
 import { prisma } from "@/lib/db";
 import { client, bucketName } from "@/lib/tos";
 import { hashPassword, verifyPassword } from "@/lib/auth";
+import { deepseek, DEFAULT_MODEL } from "@/lib/ai";
 import type { PersonaParseResult } from "@/lib/persona-parser";
 import type { Persona } from "@/lib/generated/prisma";
 
@@ -811,5 +813,701 @@ export async function deletePersonaAction(
   } catch (error) {
     console.error("Delete persona failed", error);
     return { ok: false, message: "删除人设失败，请稍后再试" };
+  }
+}
+
+// ==================== Project Actions ====================
+
+const projectSchema = z.object({
+  name: z.string().min(1, "项目名称不能为空"),
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export async function createProjectAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = projectSchema.safeParse({
+    name: formData.get("name"),
+    metadata: formData.get("metadata")
+      ? JSON.parse(formData.get("metadata") as string)
+      : undefined,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message || "输入不合法" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    await prisma.project.create({
+      data: {
+        userId: user.id,
+        name: parsed.data.name,
+        metadata: parsed.data.metadata || {},
+      },
+    });
+
+    revalidatePath("/dashboard/projects");
+    return { ok: true, message: "项目已创建" };
+  } catch (error) {
+    console.error("Create project failed", error);
+    return { ok: false, message: "创建项目失败，请稍后再试" };
+  }
+}
+
+export async function getProjects() {
+  if (!dbAvailable()) {
+    return [];
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return [];
+    }
+
+    const projects = await prisma.project.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        assets: {
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    return projects;
+  } catch (error) {
+    console.error("Failed to get projects", error);
+    return [];
+  }
+}
+
+export async function getProjectById(projectId: string) {
+  if (!dbAvailable()) {
+    return null;
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return null;
+    }
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId: user.id,
+      },
+      include: {
+        assets: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+
+    return project;
+  } catch (error) {
+    console.error("Failed to get project", error);
+    return null;
+  }
+}
+
+export async function updateProjectAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const projectId = formData.get("projectId") as string | null;
+  if (!projectId) {
+    return { ok: false, message: "项目ID不能为空" };
+  }
+
+  const parsed = projectSchema.safeParse({
+    name: formData.get("name"),
+    metadata: formData.get("metadata")
+      ? JSON.parse(formData.get("metadata") as string)
+      : undefined,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message || "输入不合法" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 检查项目是否存在且属于当前用户
+    const existingProject = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId: user.id,
+      },
+    });
+
+    if (!existingProject) {
+      return { ok: false, message: "项目不存在或无权访问" };
+    }
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        name: parsed.data.name,
+        metadata: parsed.data.metadata,
+      },
+    });
+
+    revalidatePath("/dashboard/projects");
+    revalidatePath(`/dashboard/projects/${projectId}`);
+    return { ok: true, message: "项目已更新" };
+  } catch (error) {
+    console.error("Update project failed", error);
+    return { ok: false, message: "更新项目失败，请稍后再试" };
+  }
+}
+
+export async function deleteProjectAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const projectId = formData.get("projectId") as string | null;
+  if (!projectId) {
+    return { ok: false, message: "项目ID不能为空" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 检查项目是否存在且属于当前用户
+    const existingProject = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId: user.id,
+      },
+    });
+
+    if (!existingProject) {
+      return { ok: false, message: "项目不存在或无权访问" };
+    }
+
+    // 删除项目（级联删除所有资产）
+    await prisma.project.delete({
+      where: { id: projectId },
+    });
+
+    revalidatePath("/dashboard/projects");
+    return { ok: true, message: "项目已删除" };
+  } catch (error) {
+    console.error("Delete project failed", error);
+    return { ok: false, message: "删除项目失败，请稍后再试" };
+  }
+}
+
+// ==================== ProjectAsset Actions ====================
+
+const projectAssetSchema = z.object({
+  projectId: z.string().uuid(),
+  name: z.string().min(1, "文件名不能为空"),
+  tosObjectKey: z.string().min(1, "TOS对象键不能为空"),
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export async function createProjectAssetAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = projectAssetSchema.safeParse({
+    projectId: formData.get("projectId"),
+    name: formData.get("name"),
+    tosObjectKey: formData.get("tosObjectKey"),
+    metadata: formData.get("metadata")
+      ? JSON.parse(formData.get("metadata") as string)
+      : undefined,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message || "输入不合法" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 检查项目是否存在且属于当前用户
+    const project = await prisma.project.findFirst({
+      where: {
+        id: parsed.data.projectId,
+        userId: user.id,
+      },
+    });
+
+    if (!project) {
+      return { ok: false, message: "项目不存在或无权访问" };
+    }
+
+    await prisma.projectAsset.create({
+      data: {
+        projectId: parsed.data.projectId,
+        name: parsed.data.name,
+        tosObjectKey: parsed.data.tosObjectKey,
+        metadata: parsed.data.metadata || {},
+      },
+    });
+
+    revalidatePath("/dashboard/projects");
+    revalidatePath(`/dashboard/projects/${parsed.data.projectId}`);
+    return { ok: true, message: "文档已上传" };
+  } catch (error) {
+    console.error("Create project asset failed", error);
+    return { ok: false, message: "上传文档失败，请稍后再试" };
+  }
+}
+
+export async function getProjectAssets(projectId: string) {
+  if (!dbAvailable()) {
+    return [];
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return [];
+    }
+
+    // 验证项目属于当前用户
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId: user.id,
+      },
+    });
+
+    if (!project) {
+      return [];
+    }
+
+    const assets = await prisma.projectAsset.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return assets;
+  } catch (error) {
+    console.error("Failed to get project assets", error);
+    return [];
+  }
+}
+
+export async function getProjectAssetById(assetId: string) {
+  if (!dbAvailable()) {
+    return null;
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return null;
+    }
+
+    const asset = await prisma.projectAsset.findFirst({
+      where: { id: assetId },
+      include: {
+        project: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    // 验证资产属于当前用户的项目
+    if (!asset || asset.project.userId !== user.id) {
+      return null;
+    }
+
+    return asset;
+  } catch (error) {
+    console.error("Failed to get project asset", error);
+    return null;
+  }
+}
+
+export async function updateProjectAssetAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const assetId = formData.get("assetId") as string | null;
+  if (!assetId) {
+    return { ok: false, message: "文档ID不能为空" };
+  }
+
+  const metadataStr = formData.get("metadata") as string | null;
+  let metadata: Record<string, unknown> | undefined;
+
+  if (metadataStr) {
+    try {
+      metadata = JSON.parse(metadataStr);
+    } catch {
+      return { ok: false, message: "metadata格式不正确" };
+    }
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 检查资产是否存在且属于当前用户的项目
+    const existingAsset = await prisma.projectAsset.findFirst({
+      where: { id: assetId },
+      include: {
+        project: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    if (!existingAsset || existingAsset.project.userId !== user.id) {
+      return { ok: false, message: "文档不存在或无权访问" };
+    }
+
+    await prisma.projectAsset.update({
+      where: { id: assetId },
+      data: {
+        metadata,
+      },
+    });
+
+    revalidatePath("/dashboard/projects");
+    revalidatePath(`/dashboard/projects/${existingAsset.projectId}`);
+    return { ok: true, message: "文档已更新" };
+  } catch (error) {
+    console.error("Update project asset failed", error);
+    return { ok: false, message: "更新文档失败，请稍后再试" };
+  }
+}
+
+export async function deleteProjectAssetAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const assetId = formData.get("assetId") as string | null;
+  if (!assetId) {
+    return { ok: false, message: "文档ID不能为空" };
+  }
+
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 检查资产是否存在且属于当前用户的项目
+    const existingAsset = await prisma.projectAsset.findFirst({
+      where: { id: assetId },
+      include: {
+        project: {
+          select: {
+            userId: true,
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!existingAsset || existingAsset.project.userId !== user.id) {
+      return { ok: false, message: "文档不存在或无权访问" };
+    }
+
+    // 删除资产
+    await prisma.projectAsset.delete({
+      where: { id: assetId },
+    });
+
+    revalidatePath("/dashboard/projects");
+    revalidatePath(`/dashboard/projects/${existingAsset.project.id}`);
+    return { ok: true, message: "文档已删除" };
+  } catch (error) {
+    console.error("Delete project asset failed", error);
+    return { ok: false, message: "删除文档失败，请稍后再试" };
+  }
+}
+
+// ==================== TOS Actions ====================
+
+export async function getPresignedUploadUrl(
+  fileName: string,
+  contentType: string,
+): Promise<{ ok: boolean; url?: string; objectKey?: string; message?: string }> {
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 生成唯一的对象键
+    const timestamp = Date.now();
+    const uuid = randomUUID();
+    const extension = fileName.split(".").pop();
+    const objectKey = `projects/${user.id}/${timestamp}-${uuid}.${extension}`;
+
+    // 生成预签名上传 URL
+    const response = await client.preSignedPutObject({
+      bucket: bucketName,
+      key: objectKey,
+      expires: 3600, // 1小时有效期
+      contentType,
+    });
+
+    return {
+      ok: true,
+      url: response.data.signedUrl,
+      objectKey,
+    };
+  } catch (error) {
+    console.error("Failed to get presigned upload URL", error);
+    return { ok: false, message: "获取上传链接失败" };
+  }
+}
+
+export async function getPresignedDownloadUrl(
+  objectKey: string,
+): Promise<{ ok: boolean; url?: string; message?: string }> {
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 验证对象键是否属于当前用户
+    // 对象键格式: projects/{userId}/{timestamp}-{uuid}.{ext}
+    if (!objectKey.startsWith(`projects/${user.id}/`)) {
+      return { ok: false, message: "无权访问此文件" };
+    }
+
+    // 生成预签名下载 URL
+    const response = await client.preSignedGetObject({
+      bucket: bucketName,
+      key: objectKey,
+      expires: 3600, // 1小时有效期
+    });
+
+    return {
+      ok: true,
+      url: response.data.signedUrl,
+    };
+  } catch (error) {
+    console.error("Failed to get presigned download URL", error);
+    return { ok: false, message: "获取下载链接失败" };
+  }
+}
+
+// ==================== AI Knowledge Base Generation ====================
+
+interface ProjectAssetMetadata {
+  textContent?: string;
+  fileType?: string;
+  fileSize?: number;
+  pageCount?: number;
+  aiSummary?: string;
+  extractedAt?: string;
+}
+
+interface KnowledgeBaseMetadata {
+  aiKnowledgeBase?: string;
+  summary?: string;
+  keyPoints?: string[];
+  categories?: string[];
+  generatedAt?: string;
+  documentCount?: number;
+  totalTextLength?: number;
+}
+
+export async function generateKnowledgeBaseAction(
+  projectId: string,
+): Promise<{ ok: boolean; message: string; data?: KnowledgeBaseMetadata }> {
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    // 1. 获取项目信息
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId: user.id,
+      },
+      include: {
+        assets: true,
+      },
+    });
+
+    if (!project) {
+      return { ok: false, message: "项目不存在或无权访问" };
+    }
+
+    // 2. 提取所有文档的文本内容
+    const texts = project.assets
+      .map((asset) => {
+        const metadata = asset.metadata as ProjectAssetMetadata;
+        const text = metadata.textContent || "";
+        return {
+          name: asset.name,
+          text,
+        };
+      })
+      .filter((item) => item.text.length > 0);
+
+    if (texts.length === 0) {
+      return { ok: false, message: "项目中没有可用的文档内容" };
+    }
+
+    // 3. 合并所有文本
+    const allText = texts.map((item) => `# ${item.name}\n\n${item.text}`).join("\n\n---\n\n");
+    const totalTextLength = allText.length;
+
+    // 4. 使用 AI 生成知识库
+    const { text: aiResponse } = await generateText({
+      model: deepseek(DEFAULT_MODEL),
+      messages: [
+        {
+          role: "system",
+          content: `你是一个专业的文档分析助手。你的任务是分析用户提供的文档内容，生成结构化的知识库总结。
+
+请按照以下 JSON 格式返回结果：
+{
+  "summary": "整体总结（200-300字）",
+  "keyPoints": ["关键点1", "关键点2", "关键点3", ...],
+  "categories": ["分类1", "分类2", ...]
+}
+
+要求：
+1. summary 要简洁明了，概括文档的核心内容
+2. keyPoints 要提取3-8个最重要的要点
+3. categories 要归纳文档所属的2-5个主题分类
+4. 必须返回有效的 JSON 格式`,
+        },
+        {
+          role: "user",
+          content: `请分析以下文档内容并生成知识库总结：\n\n${allText.substring(0, 50000)}`, // 限制在 50k 字符
+        },
+      ],
+      temperature: 0.7,
+      maxTokens: 2000,
+    });
+
+    // 5. 解析 AI 响应
+    let parsedResponse: { summary: string; keyPoints: string[]; categories: string[] };
+    try {
+      // 尝试从响应中提取 JSON
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedResponse = JSON.parse(jsonMatch[0]);
+      } else {
+        // 如果没有找到 JSON，使用默认格式
+        parsedResponse = {
+          summary: aiResponse.substring(0, 300),
+          keyPoints: ["AI 响应格式解析失败"],
+          categories: ["未分类"],
+        };
+      }
+    } catch (parseError) {
+      console.error("Failed to parse AI response", parseError);
+      parsedResponse = {
+        summary: aiResponse.substring(0, 300),
+        keyPoints: ["AI 响应格式解析失败"],
+        categories: ["未分类"],
+      };
+    }
+
+    // 6. 构建知识库元数据
+    const knowledgeBaseMetadata: KnowledgeBaseMetadata = {
+      aiKnowledgeBase: allText.substring(0, 100000), // 存储前 100k 字符
+      summary: parsedResponse.summary,
+      keyPoints: parsedResponse.keyPoints,
+      categories: parsedResponse.categories,
+      generatedAt: new Date().toISOString(),
+      documentCount: texts.length,
+      totalTextLength,
+    };
+
+    // 7. 更新项目 metadata
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        metadata: knowledgeBaseMetadata,
+      },
+    });
+
+    revalidatePath("/dashboard/projects");
+    revalidatePath(`/dashboard/projects/${projectId}`);
+
+    return {
+      ok: true,
+      message: "知识库生成成功",
+      data: knowledgeBaseMetadata,
+    };
+  } catch (error) {
+    console.error("Generate knowledge base failed", error);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "生成知识库失败，请稍后再试",
+    };
   }
 }
