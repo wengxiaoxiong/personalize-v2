@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { UploadIcon } from "lucide-react";
 import { extractTextFromPdf } from "@/lib/browser-text-extractor";
-import { uploadProjectFileAction } from "@/app/actions";
+import { createProjectAssetAction } from "@/app/actions";
 
 interface FileUploadSectionProps {
   projectId: string;
@@ -30,24 +30,47 @@ export function FileUploadSection({ projectId }: FileUploadSectionProps) {
       const { text, pageCount } = await extractTextFromPdf(file);
       console.log(`提取成功：${pageCount} 页，${text.length} 字符`);
 
-      // 步骤 2: 上传文件到服务器（服务器端会处理 TOS 上传）
-      setCurrentStep("正在上传文件...");
-      setProgress(60);
+      // 步骤 2: 上传文件到 TOS（通过 API route）
+      setCurrentStep("正在上传文件到存储...");
+      setProgress(50);
+
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+
+      const uploadResponse = await fetch("/api/projects/upload", {
+        method: "POST",
+        body: uploadFormData,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.message || "上传文件失败");
+      }
+
+      const uploadResult = await uploadResponse.json();
+      if (!uploadResult.ok || !uploadResult.objectKey) {
+        throw new Error(uploadResult.message || "获取文件存储键失败");
+      }
+
+      // 步骤 3: 保存文档记录（通过 Server Action）
+      setCurrentStep("正在保存记录...");
+      setProgress(80);
 
       const formData = new FormData();
       formData.append("projectId", projectId);
-      formData.append("file", file);
-      formData.append("textContent", text);
-      formData.append("pageCount", pageCount.toString());
+      formData.append("name", file.name);
+      formData.append("tosObjectKey", uploadResult.objectKey);
       formData.append("metadata", JSON.stringify({
         fileType: file.name.split(".").pop()?.toLowerCase() || "unknown",
         fileSize: file.size,
         mimeType: file.type,
+        textContent: text,
         extractedAt: new Date().toISOString(),
+        pageCount,
       }));
 
       // @ts-expect-error - Server Action 需要两个参数但客户端直接调用时会自动处理第一个参数
-      const result = await uploadProjectFileAction(null, formData);
+      const result = await createProjectAssetAction(null, formData);
 
       if (!result.ok) {
         throw new Error(result.message || "保存文档记录失败");
