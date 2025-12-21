@@ -9,6 +9,9 @@
  * 3. TOS 配置正确
  */
 
+// Import test setup first to mock Next.js dependencies
+import "./setup";
+
 import {
   createProjectAction,
   getProjects,
