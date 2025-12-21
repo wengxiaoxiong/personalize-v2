@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { client, bucketName } from "@/lib/tos";
 import { dbAvailable, getCurrentUser } from "./utils";
 import type { ActionState } from "./types";
+import type { Prisma } from "@prisma/client";
 
 const projectAssetSchema = z.object({
   projectId: z.string().uuid(),
@@ -74,10 +75,10 @@ export async function uploadProjectFileAction(
     });
 
     // 解析元数据
-    let metadata: any = {};
+    let metadata: Record<string, unknown> = {};
     if (metadataStr) {
       try {
-        metadata = JSON.parse(metadataStr);
+        metadata = JSON.parse(metadataStr) as Record<string, unknown>;
       } catch {
         console.warn("Failed to parse metadata, using defaults");
       }
@@ -157,7 +158,7 @@ export async function createProjectAssetAction(
         projectId: parsed.data.projectId,
         name: parsed.data.name,
         tosObjectKey: parsed.data.tosObjectKey,
-        metadata: (parsed.data.metadata || {}) as any,
+        metadata: (parsed.data.metadata || {}) as Prisma.InputJsonValue,
       },
     });
 
@@ -288,7 +289,7 @@ export async function updateProjectAssetAction(
     await prisma.projectAsset.update({
       where: { id: assetId },
       data: {
-        metadata: metadata as any,
+        metadata: metadata as Prisma.InputJsonValue,
       },
     });
 

@@ -127,15 +127,15 @@ export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
           <div className="space-y-2">
             <Label htmlFor="project-select">项目（可选）</Label>
             <Select
-              value={state.state.selectedProjectId || ""}
-              onValueChange={state.setSelectedProjectId}
+              value={state.state.selectedProjectId || "none"}
+              onValueChange={(value) => state.setSelectedProjectId(value === "none" ? null : value)}
               disabled={loading}
             >
               <SelectTrigger id="project-select">
                 <SelectValue placeholder="选择项目读取知识库..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">不使用知识库</SelectItem>
+                <SelectItem value="none">不使用知识库</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.name}
@@ -143,7 +143,7 @@ export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
                 ))}
               </SelectContent>
             </Select>
-            {state.state.selectedProjectId && (
+            {state.state.selectedProjectId && state.state.selectedProjectId !== "none" && (
               <div className="mt-2">
                 <Badge variant="secondary" className="text-xs">
                   已关联知识库

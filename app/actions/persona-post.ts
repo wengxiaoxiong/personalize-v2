@@ -177,9 +177,21 @@ export async function deletePersonaPostAction(
   }
 }
 
+type PersonaPostWithPersona = Prisma.PersonaPostGetPayload<{
+  include: {
+    persona: {
+      select: {
+        id: true;
+        name: true;
+        avatarUrl: true;
+      };
+    };
+  };
+}>;
+
 export async function getPersonaPostsAction(
   personaId?: string
-): Promise<{ ok: boolean; message: string; posts?: any[] }> {
+): Promise<{ ok: boolean; message: string; posts?: PersonaPostWithPersona[] }> {
   if (!(await dbAvailable())) {
     return { ok: false, message: "数据库未连接" };
   }

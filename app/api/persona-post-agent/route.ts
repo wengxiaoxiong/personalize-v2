@@ -4,9 +4,16 @@
  * 处理帖子生成Agent的聊天请求
  */
 
-import { streamText, tool } from "ai";
+import { deepseek } from "@ai-sdk/deepseek";
+import {
+  convertToModelMessages,
+  stepCountIs,
+  streamText,
+  tool,
+  type UIMessage,
+} from "ai";
 import { z } from "zod";
-import { deepseek, DEFAULT_MODEL } from "@/lib/ai";
+import { NextResponse } from "next/server";
 import { getSessionUser } from "@/app/actions/utils";
 import { prisma } from "@/lib/db";
 
@@ -17,10 +24,23 @@ export async function POST(req: Request) {
     // 验证用户身份
     const user = await getSessionUser();
     if (!user) {
-      return new Response("Unauthorized", { status: 401 });
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    const { messages, personaId, projectId } = await req.json();
+    const payload = await req.json();
+    const messages: UIMessage[] = payload?.messages ?? [];
+    const personaId = payload?.personaId;
+    const projectId = payload?.projectId;
+
+    if (!Array.isArray(messages)) {
+      return NextResponse.json(
+        { success: false, error: "无效的消息格式" },
+        { status: 400 }
+      );
+    }
 
     // 如果有projectId，获取知识库
     let knowledgeBase: string | null = null;
@@ -54,19 +74,14 @@ export async function POST(req: Request) {
 
     // 流式生成响应
     const result = streamText({
-      model: deepseek.chat(DEFAULT_MODEL),
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        ...messages,
-      ],
+      model: deepseek("deepseek-chat"),
+      system: systemPrompt,
+      messages: convertToModelMessages(messages),
       tools: {
         // 保存帖子工具
         savePersonaPost: tool({
           description: "保存生成的帖子到数据库",
-          parameters: z.object({
+          inputSchema: z.object({
             title: z.string().describe("帖子标题"),
             content: z.string().describe("帖子内容"),
             tags: z.array(z.string()).optional().describe("帖子标签"),
@@ -84,7 +99,7 @@ export async function POST(req: Request) {
         // 读取知识库工具
         readKnowledgeBase: tool({
           description: "读取项目的知识库内容，用于帮助生成更符合项目背景的帖子",
-          parameters: z.object({
+          inputSchema: z.object({
             query: z.string().describe("查询关键词"),
           }),
           execute: async () => {
@@ -109,7 +124,7 @@ export async function POST(req: Request) {
         // 生成大字报工具（占位符）
         generatePoster: tool({
           description: "生成3:4比例的大字报图片",
-          parameters: z.object({
+          inputSchema: z.object({
             title: z.string().describe("帖子标题"),
             content: z.string().describe("帖子内容摘要"),
           }),
@@ -122,17 +137,17 @@ export async function POST(req: Request) {
           },
         }),
       },
-      temperature: 0.8,
-      maxSteps: 5,
+      stopWhen: stepCountIs(6),
     });
 
-    return result.toDataStreamResponse();
+    return result.toUIMessageStreamResponse({
+      sendSources: false,
+      sendReasoning: false,
+    });
   } catch (error) {
-    console.error("Persona post agent error:", error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Internal server error",
-      }),
+    console.error("[Persona Post Agent] error:", error);
+    return NextResponse.json(
+      { success: false, error: "对话失败" },
       { status: 500 }
     );
   }

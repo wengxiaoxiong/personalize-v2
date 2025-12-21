@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { deepseek, DEFAULT_MODEL } from "@/lib/ai";
 import { dbAvailable, getCurrentUser } from "./utils";
 import type { ProjectAssetMetadata, KnowledgeBaseMetadata } from "./types";
+import type { Prisma } from "@prisma/client";
 
 export async function generateKnowledgeBaseAction(
   projectId: string,
@@ -90,7 +91,7 @@ export async function generateKnowledgeBaseAction(
       // 尝试从响应中提取 JSON
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedResponse = JSON.parse(jsonMatch[0]);
+        parsedResponse = JSON.parse(jsonMatch[0]) as { summary: string; keyPoints: string[]; categories: string[] };
       } else {
         // 如果没有找到 JSON，使用默认格式
         parsedResponse = {
@@ -123,7 +124,7 @@ export async function generateKnowledgeBaseAction(
     await prisma.project.update({
       where: { id: projectId },
       data: {
-        metadata: knowledgeBaseMetadata as any,
+        metadata: knowledgeBaseMetadata as Prisma.InputJsonValue,
       },
     });
 

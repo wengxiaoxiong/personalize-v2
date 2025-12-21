@@ -9,7 +9,6 @@ import { dbAvailable, getCurrentUser } from "./utils";
 import type {
   ActionState,
   DashboardSnapshot,
-  PersonaSummary,
   ProfessionalBackground,
   ExpressionStyle,
   AudienceRelation,
