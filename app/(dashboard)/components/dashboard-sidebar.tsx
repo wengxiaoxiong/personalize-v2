@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Home, PenLine, Sparkles, ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react";
+import { ArrowLeft, Home, PenLine, Sparkles, ChevronLeft, ChevronRight, LogOut, Settings, FolderKanban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/components/providers/dashboard-provider";
 import {
@@ -33,7 +33,8 @@ function MaskIcon() {
 
 const navItems = [
   { href: "/dashboard", label: "工作台", icon: Home },
-  { href: "/personas", label: " 人设库", icon: MaskIcon },
+  { href: "/personas", label: "人设库", icon: MaskIcon },
+  { href: "/projects", label: "项目管理", icon: FolderKanban },
 ];
 
 export function DashboardSidebar() {

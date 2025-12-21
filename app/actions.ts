@@ -856,7 +856,7 @@ export async function createProjectAction(
       },
     });
 
-    revalidatePath("/dashboard/projects");
+    revalidatePath("/projects");
     return { ok: true, message: "项目已创建" };
   } catch (error) {
     console.error("Create project failed", error);
@@ -976,8 +976,8 @@ export async function updateProjectAction(
       },
     });
 
-    revalidatePath("/dashboard/projects");
-    revalidatePath(`/dashboard/projects/${projectId}`);
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${projectId}`);
     return { ok: true, message: "项目已更新" };
   } catch (error) {
     console.error("Update project failed", error);
@@ -1021,7 +1021,7 @@ export async function deleteProjectAction(
       where: { id: projectId },
     });
 
-    revalidatePath("/dashboard/projects");
+    revalidatePath("/projects");
     return { ok: true, message: "项目已删除" };
   } catch (error) {
     console.error("Delete project failed", error);
@@ -1086,8 +1086,8 @@ export async function createProjectAssetAction(
       },
     });
 
-    revalidatePath("/dashboard/projects");
-    revalidatePath(`/dashboard/projects/${parsed.data.projectId}`);
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${parsed.data.projectId}`);
     return { ok: true, message: "文档已上传" };
   } catch (error) {
     console.error("Create project asset failed", error);
@@ -1217,8 +1217,8 @@ export async function updateProjectAssetAction(
       },
     });
 
-    revalidatePath("/dashboard/projects");
-    revalidatePath(`/dashboard/projects/${existingAsset.projectId}`);
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${existingAsset.projectId}`);
     return { ok: true, message: "文档已更新" };
   } catch (error) {
     console.error("Update project asset failed", error);
@@ -1267,8 +1267,8 @@ export async function deleteProjectAssetAction(
       where: { id: assetId },
     });
 
-    revalidatePath("/dashboard/projects");
-    revalidatePath(`/dashboard/projects/${existingAsset.project.id}`);
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${existingAsset.project.id}`);
     return { ok: true, message: "文档已删除" };
   } catch (error) {
     console.error("Delete project asset failed", error);
@@ -1495,8 +1495,8 @@ export async function generateKnowledgeBaseAction(
       },
     });
 
-    revalidatePath("/dashboard/projects");
-    revalidatePath(`/dashboard/projects/${projectId}`);
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${projectId}`);
 
     return {
       ok: true,
