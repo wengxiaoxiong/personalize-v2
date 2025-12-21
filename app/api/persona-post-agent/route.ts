@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const { messages, personaId, projectId } = await req.json();
 
     // 如果有projectId，获取知识库
-    let knowledgeBase = null;
+    let knowledgeBase: string | null = null;
     if (projectId) {
       const project = await prisma.project.findFirst({
         where: {
@@ -33,7 +33,8 @@ export async function POST(req: Request) {
       });
 
       if (project && project.metadata) {
-        knowledgeBase = (project.metadata as any).aiKnowledgeBase || null;
+        const metadata = project.metadata as Record<string, unknown>;
+        knowledgeBase = (metadata.aiKnowledgeBase as string) || null;
       }
     }
 
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
           parameters: z.object({
             query: z.string().describe("查询关键词"),
           }),
-          execute: async ({ query }) => {
+          execute: async () => {
             if (!knowledgeBase) {
               return {
                 success: false,
@@ -140,7 +141,10 @@ export async function POST(req: Request) {
 /**
  * 构建系统提示
  */
-function buildSystemPrompt(persona: any, knowledgeBase: string | null): string {
+function buildSystemPrompt(
+  persona: { name: string; domainTags: unknown; expressionStyle: unknown } | null,
+  knowledgeBase: string | null
+): string {
   let prompt = `你是一个专业的社交媒体内容创作助手。你的任务是帮助用户生成高质量的社交媒体帖子。
 
 ## 你的能力：

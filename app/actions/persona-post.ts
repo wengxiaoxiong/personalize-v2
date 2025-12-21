@@ -8,6 +8,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 import { dbAvailable, getCurrentUser } from "./utils";
 import type { PersonaPostMetadata } from "@/modules/agent/adapters/persona-post";
 
@@ -47,7 +48,7 @@ export async function createPersonaPostAction(data: {
         title: data.title,
         content: data.content,
         status: data.status || "draft",
-        metadata: data.metadata as any,
+        metadata: (data.metadata || {}) as Prisma.InputJsonValue,
       },
     });
 
@@ -108,7 +109,7 @@ export async function updatePersonaPostAction(
         ...(data.title && { title: data.title }),
         ...(data.content && { content: data.content }),
         ...(data.status && { status: data.status }),
-        ...(data.metadata && { metadata: data.metadata as any }),
+        ...(data.metadata && { metadata: data.metadata as Prisma.InputJsonValue }),
       },
     });
 

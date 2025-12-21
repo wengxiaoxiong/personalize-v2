@@ -8,7 +8,6 @@
 
 import React, { useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { PosterCanvas } from "@/components/persona-post/poster-canvas";
@@ -19,7 +18,6 @@ export interface PersonaPostPreviewProps {
   post: PersonaPostResult | null;
   posterUrl: string | null;
   generatingPoster: boolean;
-  onGeneratePoster: () => void;
   onSave: () => void;
   onClose: () => void;
 }
@@ -28,17 +26,13 @@ export function PersonaPostPreview({
   post,
   posterUrl,
   generatingPoster,
-  onGeneratePoster,
   onSave,
   onClose,
 }: PersonaPostPreviewProps) {
   const [showCanvas, setShowCanvas] = React.useState(false);
-  const [imageData, setImageData] = React.useState<string>("");
 
   const handleImageGenerated = useCallback(
     async (dataUrl: string) => {
-      setImageData(dataUrl);
-
       // 自动上传到服务器
       try {
         const response = await fetch("/api/generate-poster", {
@@ -51,7 +45,7 @@ export function PersonaPostPreview({
         });
 
         if (response.ok) {
-          const data = await response.json();
+          await response.json();
           // posterUrl会通过orchestrator更新
         }
       } catch (error) {

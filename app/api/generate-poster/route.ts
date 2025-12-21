@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { imageData, title } = await req.json();
+    const { imageData } = await req.json();
 
     if (!imageData) {
       return NextResponse.json(

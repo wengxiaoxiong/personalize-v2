@@ -20,13 +20,24 @@ import { Badge } from "@/components/ui/badge";
 import { User, FolderKanban } from "lucide-react";
 import type { PersonaPostStateApi } from "@/modules/persona-post/usePersonaPostState";
 
+interface Persona {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+}
+
+interface Project {
+  id: string;
+  name: string;
+}
+
 export interface PersonaPostSelectorsProps {
   state: PersonaPostStateApi;
 }
 
 export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
-  const [personas, setPersonas] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -156,7 +167,7 @@ export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
             <Label htmlFor="platform-select">平台</Label>
             <Select
               value={state.state.platform}
-              onValueChange={(value: any) => state.setPlatform(value)}
+              onValueChange={(value: "xiaohongshu" | "weibo" | "other") => state.setPlatform(value)}
             >
               <SelectTrigger id="platform-select">
                 <SelectValue />

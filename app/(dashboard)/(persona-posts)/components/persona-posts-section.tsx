@@ -13,8 +13,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PenLine, Plus, ArrowRight } from "lucide-react";
 
+interface PersonaPost {
+  id: string;
+  title: string;
+  content: string;
+  status: string;
+  persona: {
+    id: string;
+    name: string;
+  };
+}
+
 export function PersonaPostsSection() {
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<PersonaPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -7,7 +7,6 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AgentConversation } from "@/modules/agent/ui/agent-conversation";
@@ -20,7 +19,8 @@ import { usePersonaPostOrchestrator } from "@/modules/persona-post/usePersonaPos
 import { PersonaPostPreview } from "./persona-post-preview";
 import { PersonaPostSaveDialog } from "./persona-post-save-dialog";
 import { PersonaPostSelectors } from "./persona-post-selectors";
-import { Sparkles, Send } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import type { AgentMessage, AgentPart } from "@/modules/agent/types/agent";
 
 export function PersonaPostGenerator() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function PersonaPostGenerator() {
 
   useEffect(() => {
     pane.toggle(state.sidecarOpen);
-  }, [pane.toggle, state.sidecarOpen]);
+  }, [pane, state.sidecarOpen]);
 
   const handleSaved = useCallback(() => {
     setSaveMessage("帖子保存成功！");
@@ -56,7 +56,7 @@ export function PersonaPostGenerator() {
   }, []);
 
   const toolRenderer = useCallback(
-    (part: any, message: any, index: number) => {
+    (part: AgentPart, message: AgentMessage, index: number) => {
       return <ToolCallCard key={index} part={part} message={message} />;
     },
     []
@@ -121,7 +121,7 @@ export function PersonaPostGenerator() {
                         提示
                       </Badge>
                       <span>
-                        说"生成帖子"或"帮我写"来创建内容，
+                        说&quot;生成帖子&quot;或&quot;帮我写&quot;来创建内容，
                         {state.selectedProjectId && "已关联知识库"}
                       </span>
                     </div>
