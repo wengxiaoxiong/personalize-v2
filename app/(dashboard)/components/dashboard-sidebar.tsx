@@ -34,6 +34,7 @@ function MaskIcon() {
 const navItems = [
   { href: "/dashboard", label: "工作台", icon: Home },
   { href: "/personas", label: "人设库", icon: MaskIcon },
+  { href: "/persona-posts", label: "帖子生成", icon: PenLine },
   { href: "/projects", label: "项目管理", icon: FolderKanban },
 ];
 
