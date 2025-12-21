@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -820,7 +821,7 @@ export async function deletePersonaAction(
 
 const projectSchema = z.object({
   name: z.string().min(1, "项目名称不能为空"),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export async function createProjectAction(
@@ -1035,8 +1036,106 @@ const projectAssetSchema = z.object({
   projectId: z.string().uuid(),
   name: z.string().min(1, "文件名不能为空"),
   tosObjectKey: z.string().min(1, "TOS对象键不能为空"),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
+
+/**
+ * 上传项目文件（服务器端处理，避免 CORS 问题）
+ * 接收文件、提取的文本和元数据，在服务器端上传到 TOS 并创建记录
+ */
+export async function uploadProjectFileAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  if (!dbAvailable()) {
+    return { ok: false, message: "数据库未连接" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false, message: "请先登录" };
+    }
+
+    const projectId = formData.get("projectId") as string;
+    const file = formData.get("file") as File | null;
+    const textContent = formData.get("textContent") as string | null;
+    const pageCount = formData.get("pageCount") as string | null;
+    const metadataStr = formData.get("metadata") as string | null;
+
+    if (!projectId || !file) {
+      return { ok: false, message: "缺少必要参数" };
+    }
+
+    // 验证项目是否存在且属于当前用户
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId: user.id,
+      },
+    });
+
+    if (!project) {
+      return { ok: false, message: "项目不存在或无权访问" };
+    }
+
+    // 生成唯一的对象键
+    const timestamp = Date.now();
+    const uuid = randomUUID();
+    const extension = file.name.split(".").pop();
+    const objectKey = `projects/${user.id}/${timestamp}-${uuid}.${extension}`;
+
+    // 将文件转换为 Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // 上传文件到 TOS
+    await client.putObject({
+      bucket: bucketName,
+      key: objectKey,
+      body: buffer,
+      contentType: file.type,
+    });
+
+    // 解析元数据
+    let metadata: any = {};
+    if (metadataStr) {
+      try {
+        metadata = JSON.parse(metadataStr);
+      } catch {
+        console.warn("Failed to parse metadata, using defaults");
+      }
+    }
+
+    // 合并元数据
+    const finalMetadata = {
+      fileType: file.name.split(".").pop()?.toLowerCase() || "unknown",
+      fileSize: file.size,
+      mimeType: file.type,
+      textContent: textContent || "",
+      extractedAt: new Date().toISOString(),
+      pageCount: pageCount ? parseInt(pageCount, 10) : 0,
+      ...metadata,
+    };
+
+    // 创建文档记录
+    await prisma.projectAsset.create({
+      data: {
+        projectId,
+        name: file.name,
+        tosObjectKey: objectKey,
+        metadata: finalMetadata,
+      },
+    });
+
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${projectId}`);
+    return { ok: true, message: "文档已上传" };
+  } catch (error) {
+    console.error("Upload project file failed", error);
+    return { ok: false, message: "上传文档失败，请稍后再试" };
+  }
+}
 
 export async function createProjectAssetAction(
   _prevState: ActionState,
@@ -1082,7 +1181,7 @@ export async function createProjectAssetAction(
         projectId: parsed.data.projectId,
         name: parsed.data.name,
         tosObjectKey: parsed.data.tosObjectKey,
-        metadata: parsed.data.metadata || {},
+        metadata: (parsed.data.metadata || {}) as any,
       },
     });
 
@@ -1213,7 +1312,7 @@ export async function updateProjectAssetAction(
     await prisma.projectAsset.update({
       where: { id: assetId },
       data: {
-        metadata,
+        metadata: metadata as any,
       },
     });
 
@@ -1280,6 +1379,7 @@ export async function deleteProjectAssetAction(
 
 export async function getPresignedUploadUrl(
   fileName: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   contentType: string,
 ): Promise<{ ok: boolean; url?: string; objectKey?: string; message?: string }> {
   if (!dbAvailable()) {
@@ -1298,17 +1398,20 @@ export async function getPresignedUploadUrl(
     const extension = fileName.split(".").pop();
     const objectKey = `projects/${user.id}/${timestamp}-${uuid}.${extension}`;
 
-    // 生成预签名上传 URL
-    const response = await client.preSignedPutObject({
+    // 生成预签名上传 URL (使用 PUT 方法)
+    const url = client.getPreSignedUrl({
       bucket: bucketName,
       key: objectKey,
       expires: 3600, // 1小时有效期
-      contentType,
+      method: 'PUT',
+      // headers: {
+      //   'Content-Type': contentType,
+      // },
     });
 
     return {
       ok: true,
-      url: response.data.signedUrl,
+      url,
       objectKey,
     };
   } catch (error) {
@@ -1337,7 +1440,7 @@ export async function getPresignedDownloadUrl(
     }
 
     // 生成预签名下载 URL
-    const response = await client.preSignedGetObject({
+    const url = client.getPreSignedUrl({
       bucket: bucketName,
       key: objectKey,
       expires: 3600, // 1小时有效期
@@ -1345,7 +1448,7 @@ export async function getPresignedDownloadUrl(
 
     return {
       ok: true,
-      url: response.data.signedUrl,
+      url,
     };
   } catch (error) {
     console.error("Failed to get presigned download URL", error);
@@ -1424,7 +1527,7 @@ export async function generateKnowledgeBaseAction(
 
     // 4. 使用 AI 生成知识库
     const { text: aiResponse } = await generateText({
-      model: deepseek(DEFAULT_MODEL),
+      model: deepseek.chat(DEFAULT_MODEL),
       messages: [
         {
           role: "system",
@@ -1449,7 +1552,6 @@ export async function generateKnowledgeBaseAction(
         },
       ],
       temperature: 0.7,
-      maxTokens: 2000,
     });
 
     // 5. 解析 AI 响应
@@ -1491,7 +1593,7 @@ export async function generateKnowledgeBaseAction(
     await prisma.project.update({
       where: { id: projectId },
       data: {
-        metadata: knowledgeBaseMetadata,
+        metadata: knowledgeBaseMetadata as any,
       },
     });
 

@@ -1,6 +1,12 @@
-type PdfJsInstance = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { type PDFDocumentProxy } from 'pdfjs-dist';
+
+// 1. 定义类型：使用 any 绕过 TS 对 ESM default 导出的检查
+type PdfJsInstance = any;
 
 let pdfjsPromise: Promise<PdfJsInstance> | null = null;
+
+// lib/browser-text-extractor.ts
 
 async function loadPdfJs() {
   if (typeof window === 'undefined') {
@@ -8,20 +14,23 @@ async function loadPdfJs() {
   }
 
   if (!pdfjsPromise) {
-    pdfjsPromise = Promise.all([
-      import('pdfjs-dist/legacy/build/pdf.mjs'),
-      import('pdfjs-dist/legacy/build/pdf.worker.mjs?url'),
-    ]).then(([pdfjs, worker]) => {
-      if (worker?.default) {
-        pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-      }
+    // 👇 加上这一行注释，TS 就不会报错了
+    pdfjsPromise = import('pdfjs-dist/build/pdf.min.mjs').then((mod) => {
+      // 3. 强行转换类型，处理 Webpack 的 default 导出包裹
+      const pdfjsModule = mod as any;
+      const pdfjs = pdfjsModule.default || pdfjsModule;
+
+      // 4. 关键修复：直接指定 CDN Worker 地址
+      // 必须与你 package.json 中的 pdfjs-dist 版本号严格一致
+      const version = pdfjs.version || '5.4.449'; 
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+
       return pdfjs;
     });
   }
 
   return pdfjsPromise;
 }
-
 export type ExtractedPdfText = {
   text: string;
   pageCount: number;
@@ -38,7 +47,8 @@ export async function extractTextFromPdf(file: File): Promise<ExtractedPdfText> 
   const pdfjs = await loadPdfJs();
 
   const arrayBuffer = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  // 加载文档
+  const doc: PDFDocumentProxy = await pdfjs.getDocument({ data: arrayBuffer }).promise;
 
   const pageTexts: string[] = [];
 
@@ -47,9 +57,10 @@ export async function extractTextFromPdf(file: File): Promise<ExtractedPdfText> 
     const content = await page.getTextContent();
 
     const pageText = content.items
-      .map((item) => {
-        if (typeof (item as { str?: unknown }).str === 'string') {
-          return ((item as { str: string }).str || '').trim();
+      .map((item: any) => {
+        // 简单判断 str 属性
+        if (typeof item?.str === 'string') {
+          return (item.str || '').trim();
         }
         return '';
       })
@@ -71,16 +82,11 @@ export async function extractTextFromPdf(file: File): Promise<ExtractedPdfText> 
   };
 }
 
-/**
- * 提取PDF每页的文字内容
- * @param file PDF文件
- * @returns 每页的文字内容数组，按页码排序
- */
 export async function extractTextFromPdfByPage(file: File): Promise<ExtractedPdfPageText[]> {
   const pdfjs = await loadPdfJs();
 
   const arrayBuffer = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const doc: PDFDocumentProxy = await pdfjs.getDocument({ data: arrayBuffer }).promise;
 
   const pageTexts: ExtractedPdfPageText[] = [];
 
@@ -89,9 +95,9 @@ export async function extractTextFromPdfByPage(file: File): Promise<ExtractedPdf
     const content = await page.getTextContent();
 
     const pageText = content.items
-      .map((item) => {
-        if (typeof (item as { str?: unknown }).str === 'string') {
-          return ((item as { str: string }).str || '').trim();
+      .map((item: any) => {
+        if (typeof item?.str === 'string') {
+          return (item.str || '').trim();
         }
         return '';
       })
@@ -121,47 +127,57 @@ export async function extractImagesFromPdf(file: File, scale = 1.5): Promise<Pdf
   const pdfjs = await loadPdfJs();
 
   const arrayBuffer = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const doc: PDFDocumentProxy = await pdfjs.getDocument({ data: arrayBuffer }).promise;
 
   const pageImages: PdfPageImage[] = [];
+  const totalPages = doc.numPages;
 
-  for (let pageIndex = 1; pageIndex <= doc.numPages; pageIndex += 1) {
-    const page = await doc.getPage(pageIndex);
+  console.log(`开始提取PDF图片，总页数: ${totalPages}`);
 
-    // 获取页面尺寸
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+  for (let pageIndex = 1; pageIndex <= totalPages; pageIndex += 1) {
+    try {
+      const page = await doc.getPage(pageIndex);
 
-    if (!context) {
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        console.warn(`第 ${pageIndex} 页: 无法获取canvas context，跳过`);
+        continue;
+      }
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport,
+        canvas, 
+      }).promise;
+
+      const imageUrl = canvas.toDataURL('image/png');
+
+      pageImages.push({
+        pageNumber: pageIndex,
+        imageUrl,
+        width: viewport.width,
+        height: viewport.height,
+      });
+
+      canvas.remove();
+
+      if (pageIndex % 10 === 0) {
+        console.log(`已处理 ${pageIndex}/${totalPages} 页`);
+      }
+    } catch (error) {
+      console.error(`第 ${pageIndex} 页处理失败:`, error);
       continue;
     }
-
-    // 设置画布尺寸
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    // 渲染页面到画布 - pdf.js v3.x 需要canvas参数而不是canvasContext
-    await page.render({
-      canvasContext: context,
-      viewport: viewport,
-      canvas, // 在新版本pdf.js中需要这个参数
-    }).promise;
-
-    // 转换为图片URL
-    const imageUrl = canvas.toDataURL('image/png');
-
-    pageImages.push({
-      pageNumber: pageIndex,
-      imageUrl,
-      width: viewport.width,
-      height: viewport.height,
-    });
-
-    // 清理画布
-    canvas.remove();
   }
 
+  console.log(`PDF图片提取完成，成功提取 ${pageImages.length}/${totalPages} 页`);
+  
   return pageImages;
 }
 
@@ -169,7 +185,6 @@ export function truncatePdfText(content: string, limit = QUICK_PDF_PROMPT_CHAR_L
   if (content.length <= limit) {
     return { text: content, truncated: false } as const;
   }
-
   const sliced = content.slice(0, limit);
   return {
     text: `${sliced}...`,

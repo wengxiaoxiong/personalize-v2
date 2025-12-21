@@ -49,6 +49,34 @@ npm run test:actions
 
 ---
 
+### 3. tos-test.ts - TOS对象存储测试
+专门测试火山引擎TOS对象存储功能的脚本。
+
+**测试内容：**
+- ✅ TOS连接和认证
+- ✅ 列出存储桶
+- ✅ 上传文件
+- ✅ 下载文件
+- ✅ 获取文件元数据
+- ✅ 列出文件
+- ✅ 生成预签名URL
+- ✅ 删除文件
+- ✅ 实际文件上传测试
+
+**运行方式：**
+```bash
+npm run test:tos
+# 或
+pnpm run test:tos
+```
+
+**前置条件：**
+- `VOLCENGINE_ACCESS_KEY_ID` - 火山引擎TOS访问密钥ID
+- `VOLCENGINE_ACCESS_KEY_SECRET` - 火山引擎TOS访问密钥Secret
+- 存储桶 `comicgen` 已创建并有读写权限
+
+---
+
 ## 环境配置
 
 复制 `.env.example` 到 `.env` 并填写配置：
@@ -93,6 +121,13 @@ npx prisma studio
 ### 快速测试（仅数据库）
 ```bash
 npm run test:simple
+```
+
+### TOS对象存储测试
+```bash
+npm run test:tos
+# 或
+pnpm run test:tos
 ```
 
 ### 完整测试（包含Server Actions）

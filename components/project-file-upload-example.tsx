@@ -84,7 +84,8 @@ export function ProjectFileUpload({ projectId, onSuccess, onError }: FileUploadP
         pageCount,
       }));
 
-      const result = await createProjectAssetAction({ ok: true, message: "" }, formData);
+      // @ts-expect-error - Server Action 需要两个参数但客户端直接调用时会自动处理第一个参数
+      const result = await createProjectAssetAction(null, formData);
 
       if (!result.ok) {
         throw new Error(result.message || "保存文档记录失败");

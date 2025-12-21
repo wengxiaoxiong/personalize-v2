@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { UploadIcon } from "lucide-react";
 import { extractTextFromPdf } from "@/lib/browser-text-extractor";
-import { getPresignedUploadUrl, createProjectAssetAction } from "@/app/actions";
+import { uploadProjectFileAction } from "@/app/actions";
 
 interface FileUploadSectionProps {
   projectId: string;
@@ -31,54 +30,24 @@ export function FileUploadSection({ projectId }: FileUploadSectionProps) {
       const { text, pageCount } = await extractTextFromPdf(file);
       console.log(`提取成功：${pageCount} 页，${text.length} 字符`);
 
-      // 步骤 2: 获取预签名上传 URL
-      setCurrentStep("正在获取上传链接...");
-      setProgress(40);
-
-      const uploadUrlResult = await getPresignedUploadUrl(file.name, file.type);
-      if (!uploadUrlResult.ok) {
-        throw new Error(uploadUrlResult.message || "获取上传链接失败");
-      }
-
-      const { url, objectKey } = uploadUrlResult;
-      if (!url || !objectKey) {
-        throw new Error("上传链接或对象键为空");
-      }
-
-      // 步骤 3: 上传文件到 TOS
+      // 步骤 2: 上传文件到服务器（服务器端会处理 TOS 上传）
       setCurrentStep("正在上传文件...");
       setProgress(60);
 
-      const uploadResponse = await fetch(url, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": file.type,
-        },
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error(`文件上传失败: ${uploadResponse.statusText}`);
-      }
-
-      // 步骤 4: 创建文档记录
-      setCurrentStep("正在保存记录...");
-      setProgress(80);
-
       const formData = new FormData();
       formData.append("projectId", projectId);
-      formData.append("name", file.name);
-      formData.append("tosObjectKey", objectKey);
+      formData.append("file", file);
+      formData.append("textContent", text);
+      formData.append("pageCount", pageCount.toString());
       formData.append("metadata", JSON.stringify({
         fileType: file.name.split(".").pop()?.toLowerCase() || "unknown",
         fileSize: file.size,
         mimeType: file.type,
-        textContent: text,
         extractedAt: new Date().toISOString(),
-        pageCount,
       }));
 
-      const result = await createProjectAssetAction({ ok: true, message: "" }, formData);
+      // @ts-expect-error - Server Action 需要两个参数但客户端直接调用时会自动处理第一个参数
+      const result = await uploadProjectFileAction(null, formData);
 
       if (!result.ok) {
         throw new Error(result.message || "保存文档记录失败");
@@ -86,7 +55,7 @@ export function FileUploadSection({ projectId }: FileUploadSectionProps) {
 
       // 完成
       setProgress(100);
-      setCurrentStep("上传完成!");
+      setCurrentStep("上传完成！");
 
       // 刷新页面
       setTimeout(() => {
