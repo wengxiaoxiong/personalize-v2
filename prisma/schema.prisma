@@ -17,6 +17,12 @@ enum SubscriptionPlan {
   business
 }
 
+enum PostStatus {
+  draft
+  published
+  archived
+}
+
 model User {
   id                  String           @id @default(uuid()) @db.Uuid
   email               String           @unique
@@ -72,22 +78,39 @@ model ProjectAsset {
 }
 
 model Persona {
-  id                        String   @id @default(uuid()) @db.Uuid
-  userId                    String   @map("user_id") @db.Uuid
+  id                        String        @id @default(uuid()) @db.Uuid
+  userId                    String        @map("user_id") @db.Uuid
   name                      String
-  avatarUrl                 String?  @map("avatar_url")
-  domainTags                Json     @default("[]") @map("domain_tags")
-  professionalBackground    Json?    @map("professional_background")
-  expressionStyle           Json     @map("expression_style")
-  audienceRelation          Json?    @map("audience_relation")
-  professionalPreferences   Json?    @map("professional_preferences")
-  isTemplate                Boolean  @default(false) @map("is_template")
-  templateCategory          String?  @map("template_category")
-  createdAt                 DateTime @default(now()) @map("created_at")
-  updatedAt                 DateTime @updatedAt @map("updated_at")
+  avatarUrl                 String?       @map("avatar_url")
+  domainTags                Json          @default("[]") @map("domain_tags")
+  professionalBackground    Json?         @map("professional_background")
+  expressionStyle           Json          @map("expression_style")
+  audienceRelation          Json?         @map("audience_relation")
+  professionalPreferences   Json?         @map("professional_preferences")
+  isTemplate                Boolean       @default(false) @map("is_template")
+  templateCategory          String?       @map("template_category")
+  createdAt                 DateTime      @default(now()) @map("created_at")
+  updatedAt                 DateTime      @updatedAt @map("updated_at")
   
-  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts                     PersonaPost[]
   
   @@map("personas")
 }
 
+model PersonaPost {
+  id                  String      @id @default(uuid()) @db.Uuid
+  personaId           String      @map("persona_id") @db.Uuid
+  title               String
+  content             String?     // 帖子内容
+  status              PostStatus  @default(draft)
+  // metadata 可以存储额外的信息，如标签、图片链接等
+  // 例如: { "tags": [...], "images": [...], "platform": "xiaohongshu|weibo|..." }
+  metadata            Json?       @map("metadata")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+  
+  persona             Persona     @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  
+  @@map("persona_posts")
+}
