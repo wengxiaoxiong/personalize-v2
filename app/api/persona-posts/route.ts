@@ -118,3 +118,116 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, message: "请先登录" },
+        { status: 401 }
+      );
+    }
+
+    const { postId } = await req.json();
+
+    if (!postId) {
+      return NextResponse.json(
+        { ok: false, message: "缺少帖子ID" },
+        { status: 400 }
+      );
+    }
+
+    const post = await prisma.personaPost.findFirst({
+      where: { id: postId },
+      include: {
+        persona: true,
+      },
+    });
+
+    if (!post || post.persona.userId !== user.id) {
+      return NextResponse.json(
+        { ok: false, message: "帖子不存在或无权访问" },
+        { status: 403 }
+      );
+    }
+
+    await prisma.personaPost.delete({
+      where: { id: postId },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: "帖子删除成功",
+    });
+  } catch (error) {
+    console.error("Delete persona post failed:", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error instanceof Error ? error.message : "删除帖子失败",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, message: "请先登录" },
+        { status: 401 }
+      );
+    }
+
+    const { postId, title, content, status, metadata } = await req.json();
+
+    if (!postId) {
+      return NextResponse.json(
+        { ok: false, message: "缺少帖子ID" },
+        { status: 400 }
+      );
+    }
+
+    const post = await prisma.personaPost.findFirst({
+      where: { id: postId },
+      include: {
+        persona: true,
+      },
+    });
+
+    if (!post || post.persona.userId !== user.id) {
+      return NextResponse.json(
+        { ok: false, message: "帖子不存在或无权访问" },
+        { status: 403 }
+      );
+    }
+
+    const updated = await prisma.personaPost.update({
+      where: { id: postId },
+      data: {
+        ...(title && { title }),
+        ...(content && { content }),
+        ...(status && { status }),
+        ...(metadata && { metadata }),
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: "帖子更新成功",
+      post: updated,
+    });
+  } catch (error) {
+    console.error("Update persona post failed:", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error instanceof Error ? error.message : "更新帖子失败",
+      },
+      { status: 500 }
+    );
+  }
+}

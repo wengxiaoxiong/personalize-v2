@@ -8,9 +8,9 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AgentConversation } from "@/modules/agent/ui/agent-conversation";
-import { AgentSidecar } from "@/modules/agent/ui/agent-sidecar";
 import { AgentPromptInput } from "@/modules/agent/ui/agent-prompt-input";
 import { ToolCallCard } from "@/modules/agent/ui/tool-call-card";
 import { usePaneState } from "@/modules/agent/hooks/use-pane-state";
@@ -22,8 +22,23 @@ import { PersonaPostSelectors } from "./persona-post-selectors";
 import { Sparkles } from "lucide-react";
 import type { AgentMessage, AgentPart } from "@/modules/agent/types/agent";
 
+interface PersonaPostRecord {
+  id: string;
+  title: string;
+  content: string;
+  status: string;
+  metadata?: {
+    tags?: string[];
+    platform?: string;
+    posterUrl?: string | null;
+    [key: string]: unknown;
+  } | null;
+}
+
 export function PersonaPostGenerator() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [historyPosts, setHistoryPosts] = useState<PersonaPostRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const personaPostState = usePersonaPostState();
   const pane = usePaneState(false);
   const orchestrator = usePersonaPostOrchestrator({ personaPostState });
@@ -54,6 +69,140 @@ export function PersonaPostGenerator() {
     setSaveMessage("帖子保存成功！");
     setTimeout(() => setSaveMessage(null), 3000);
   }, []);
+
+  // 加载数据库中的历史帖子列表
+  const loadHistoryPosts = useCallback(async () => {
+    try {
+      setLoadingHistory(true);
+      const res = await fetch("/api/persona-posts");
+      if (!res.ok) return;
+      const data = await res.json();
+      // 只展示最新的几条（例如 5 条）
+      const posts: PersonaPostRecord[] = Array.isArray(data.posts)
+        ? data.posts.slice(0, 5)
+        : [];
+      setHistoryPosts(posts);
+    } catch (err) {
+      console.error("Failed to load history posts:", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  // 复制：基于某个帖子在数据库中创建一个副本（不传则使用当前预览的帖子）
+  const handleCopyPost = useCallback(
+    async (record?: PersonaPostRecord) => {
+      const source =
+        record ||
+        (state.finalPost && {
+          id: state.finalPost.id as string | undefined,
+          title: state.finalPost.title,
+          content: state.finalPost.content,
+          status: state.finalPost.status ?? "draft",
+          metadata: state.finalPost.metadata ?? undefined,
+        });
+
+      if (!source || !state.selectedPersonaId) return;
+
+      try {
+        const res = await fetch("/api/persona-posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            personaId: state.selectedPersonaId,
+            title: source.title,
+            content: source.content,
+            status: source.status || "draft",
+            metadata: {
+              ...(source.metadata || {}),
+              posterUrl: state.posterUrl,
+              tags: state.tags,
+              platform: state.platform,
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error("复制失败");
+        }
+
+        // 刷新列表
+        await loadHistoryPosts();
+        setSaveMessage("已复制为新的帖子！");
+        setTimeout(() => setSaveMessage(null), 3000);
+      } catch (err) {
+        console.error("Failed to copy post:", err);
+      }
+    },
+    [
+      state.finalPost,
+      state.selectedPersonaId,
+      state.posterUrl,
+      state.tags,
+      state.platform,
+      loadHistoryPosts,
+    ]
+  );
+
+  // 编辑：打开保存对话框。若传入 record，则先将其设置为当前 finalPost
+  const handleEditPost = useCallback(
+    (record?: PersonaPostRecord) => {
+      if (record) {
+        personaPostState.setFinalPost({
+          id: record.id,
+          title: record.title,
+          content: record.content,
+          status: record.status,
+          tags: record.metadata?.tags || [],
+          platform: record.metadata?.platform,
+          metadata: record.metadata || {},
+        });
+        personaPostState.setPosterUrl(record.metadata?.posterUrl || null);
+      } else if (!state.finalPost) {
+        return;
+      }
+
+      setShowSaveDialog(true);
+    },
+    [personaPostState, state.finalPost, setShowSaveDialog]
+  );
+
+  // 删除：删除某条帖子（不传则删除当前预览的 finalPost，仅清理前端）
+  const handleDeletePost = useCallback(
+    (record?: PersonaPostRecord) => {
+      const targetId = record?.id ?? state.finalPost?.id;
+
+      if (targetId) {
+        fetch("/api/persona-posts", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ postId: targetId }),
+        })
+          .then((res) => {
+            if (!res.ok) {
+              throw new Error("删除失败");
+            }
+            // 删除成功后刷新列表
+            loadHistoryPosts();
+          })
+          .catch((err) => {
+            console.error("Failed to delete post:", err);
+          });
+      }
+
+      // 如果当前预览就是被删的那一条，则清理预览
+      if (!record || record.id === state.finalPost?.id) {
+        personaPostState.setFinalPost(null);
+        personaPostState.setPosterUrl(null);
+      }
+    },
+    [personaPostState, state.finalPost, loadHistoryPosts]
+  );
+
+  // 首次进入页面时加载一次历史帖子
+  useEffect(() => {
+    loadHistoryPosts();
+  }, [loadHistoryPosts]);
 
   const toolRenderer = useCallback(
     (part: AgentPart, message: AgentMessage, index: number) => {
@@ -133,17 +282,59 @@ export function PersonaPostGenerator() {
         </Card>
       </div>
 
-      {/* 右侧预览面板（响应式） */}
-      <AgentSidecar visible={pane.visible} isDesktop={pane.isDesktop}>
-        <PersonaPostPreview
-          post={state.finalPost}
-          posterUrl={state.posterUrl}
-          generatingPoster={state.generatingPoster}
-          onGeneratePoster={handleGeneratePoster}
-          onSave={() => setShowSaveDialog(true)}
-          onClose={toggleSidecar}
-        />
-      </AgentSidecar>
+      {/* 下方：帖子预览卡片列表（横向排版） */}
+      <div className="lg:col-span-3 space-y-4 mt-4">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-sm font-medium text-muted-foreground">
+            帖子列表
+          </span>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-xs"
+            onClick={loadHistoryPosts}
+          >
+            刷新
+          </Button>
+        </div>
+
+        {loadingHistory ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-40 bg-muted animate-pulse rounded-lg"
+              />
+            ))}
+          </div>
+        ) : historyPosts.length === 0 ? (
+          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground border rounded-lg">
+            暂无已保存的帖子
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {historyPosts.map((post) => (
+              <PersonaPostPreview
+                key={post.id}
+                post={{
+                  id: post.id,
+                  title: post.title,
+                  content: post.content,
+                  status: post.status,
+                  tags: post.metadata?.tags || [],
+                  platform: post.metadata?.platform,
+                  metadata: post.metadata || {},
+                }}
+                posterUrl={post.metadata?.posterUrl || null}
+                generatingPoster={false}
+                onCopy={() => handleCopyPost(post)}
+                onEdit={() => handleEditPost(post)}
+                onDelete={() => handleDeletePost(post)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* 保存对话框 */}
       <PersonaPostSaveDialog
@@ -151,9 +342,10 @@ export function PersonaPostGenerator() {
         onClose={closeSaveDialog}
         post={state.finalPost}
         posterUrl={state.posterUrl}
-        onSave={async () => {
-          await handleSavePost();
+        onSave={async ({ title, content }) => {
+          await handleSavePost({ title, content });
           handleSaved();
+          await loadHistoryPosts();
         }}
         state={personaPostState}
       />

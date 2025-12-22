@@ -5,7 +5,7 @@
  */
 
 import { useCallback } from "react";
-import type { PromptInputMessage } from "@/modules/agent/ui/agent-prompt-input";
+import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { useAgentChat } from "@/modules/agent/hooks/use-agent-chat";
 import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
 import type { PersonaPostStateApi } from "./usePersonaPostState";
@@ -38,7 +38,7 @@ export interface PersonaPostOrchestratorResult {
   // 动作
   actions: {
     handleSubmit: (message: PromptInputMessage) => Promise<void>;
-    handleSavePost: () => Promise<void>;
+    handleSavePost: (payload?: { title: string; content: string }) => Promise<void>;
     handleGeneratePoster: () => Promise<void>;
     toggleSidecar: () => void;
     closeSaveDialog: () => void;
@@ -75,17 +75,64 @@ export function usePersonaPostOrchestrator({
     toolName: PERSONA_POST_SAVE_TOOL,
     onMatch: async (part) => {
       try {
-        // 提取工具调用的参数
-        const args = part.args as any;
-        const postData = parsePersonaPostResult(
-          args.content || JSON.stringify(args)
-        );
+        const toolPart = part as any;
+        const { state, args, result, input, output } = toolPart;
 
-        if (postData) {
-          setFinalPost(postData);
-          setShowSaveDialog(true);
-          setSidecarOpen(true);
+        // 调试日志：观察工具调用的完整结构（包含 state / input / output）
+        console.log("[PersonaPost] savePersonaPost tool part:", {
+          state,
+          args,
+          result,
+          input,
+          output,
+          toolPart,
+        });
+
+        // 流式工具通常：先 input-streaming，再 output/complete
+        // 我们只在有 output（工具真正返回结果）时处理
+        const raw = output ?? result ?? args;
+        if (!raw) {
+          console.log("[PersonaPost] no output/result/args yet, skip this part");
+          return;
         }
+
+        // 柔性兼容：有些实现直接把数据放在顶层，有些放在 raw.data
+        const container = (raw as any);
+        const data = (container.data ?? container) as any;
+
+        console.log("[PersonaPost] resolved savePersonaPost data:", data);
+
+        // 需要至少有 content 才有意义
+        if (!data || (!data.content && !data.title)) {
+          console.log(
+            "[PersonaPost] data missing title/content, skip showing save dialog"
+          );
+          return;
+        }
+
+        // 若 data 自身就长得像 { title, content, tags, platform }
+        const finalTitle = data.title ?? "未命名帖子";
+        const finalContent = data.content;
+
+        if (!finalContent) {
+          console.log("[PersonaPost] finalContent is empty, skip");
+          return;
+        }
+
+        setFinalPost({
+          title: finalTitle,
+          content: finalContent,
+          tags: data.tags,
+          platform: data.platform,
+          metadata: {
+            tags: data.tags,
+            platform: data.platform,
+          },
+        });
+
+        console.log("[PersonaPost] finalPost set, opening save dialog and sidecar");
+        setShowSaveDialog(true);
+        setSidecarOpen(true);
       } catch (error) {
         console.error("Failed to handle save post tool", error);
         setError("保存帖子时出错");
@@ -99,10 +146,22 @@ export function usePersonaPostOrchestrator({
     toolName: PERSONA_POST_READ_KB_TOOL,
     onMatch: async (part) => {
       try {
-        // 提取工具调用的结果
-        const result = part.result as any;
-        if (result && result.knowledgeBase) {
-          setKnowledgeBase(result.knowledgeBase);
+        const toolPart = part as any;
+        const { state, input, output } = toolPart;
+
+        console.log("[PersonaPost] readKnowledgeBase tool part:", {
+          state,
+          input,
+          output,
+          toolPart,
+        });
+
+        const raw = output ?? input;
+        if (!raw) return;
+
+        const data = (raw.data ?? raw) as any;
+        if (data && data.knowledgeBase) {
+          setKnowledgeBase(data.knowledgeBase);
         }
       } catch (error) {
         console.error("Failed to handle read knowledge base tool", error);
@@ -116,9 +175,22 @@ export function usePersonaPostOrchestrator({
     toolName: PERSONA_POST_GENERATE_POSTER_TOOL,
     onMatch: async (part) => {
       try {
-        const result = part.result as any;
-        if (result && result.posterUrl) {
-          setPosterUrl(result.posterUrl);
+        const toolPart = part as any;
+        const { state, input, output } = toolPart;
+
+        console.log("[PersonaPost] generatePoster tool part:", {
+          state,
+          input,
+          output,
+          toolPart,
+        });
+
+        const raw = output ?? input;
+        if (!raw) return;
+
+        const data = (raw.data ?? raw) as any;
+        if (data && data.posterUrl) {
+          setPosterUrl(data.posterUrl);
         }
       } catch (error) {
         console.error("Failed to handle generate poster tool", error);
@@ -139,10 +211,19 @@ export function usePersonaPostOrchestrator({
         );
 
         // 发送消息到聊天
-        await chat.sendMessage({
-          text: message.text,
-          files: message.files,
-        });
+        await chat.sendMessage(
+          {
+            text: message.text,
+            files: message.files,
+          },
+          {
+            body: {
+              // 将所选人设与项目知识库传给后端，便于读取知识库
+              personaId: state.selectedPersonaId,
+              projectId: state.selectedProjectId,
+            },
+          }
+        );
 
         // 如果需要生成，打开侧边预览面板
         if (shouldGenerate) {
@@ -156,38 +237,84 @@ export function usePersonaPostOrchestrator({
     [chat, setError, setStarted, setSidecarOpen]
   );
 
-  // 6. 保存帖子到数据库
-  const handleSavePost = useCallback(async () => {
+  // 6. 保存/更新帖子到数据库
+  const handleSavePost = useCallback(
+    async (payload?: { title: string; content: string }) => {
     try {
       if (!state.finalPost) {
         setError("没有可保存的帖子");
         return;
       }
 
-      if (!state.selectedPersonaId) {
+      const isUpdate = Boolean(state.finalPost.id);
+
+      // 新建帖子时必须选择人设；编辑已有帖子则不强制
+      if (!isUpdate && !state.selectedPersonaId) {
         setError("请先选择一个人设");
         return;
       }
 
-      // 调用保存API
+      const method = isUpdate ? "PATCH" : "POST";
+
+      const nextTitle = payload?.title ?? state.finalPost.title;
+      const nextContent = payload?.content ?? state.finalPost.content;
+
+      const body = isUpdate
+        ? {
+            postId: state.finalPost.id,
+            title: nextTitle,
+            content: nextContent,
+            status: state.finalPost.status,
+            metadata: {
+              ...state.finalPost.metadata,
+              posterUrl: state.posterUrl,
+              tags: state.tags,
+              platform: state.platform,
+            },
+          }
+        : {
+            personaId: state.selectedPersonaId,
+            title: nextTitle,
+            content: nextContent,
+            status: state.finalPost.status,
+            metadata: {
+              ...state.finalPost.metadata,
+              posterUrl: state.posterUrl,
+              tags: state.tags,
+              platform: state.platform,
+            },
+          };
+
+      // 调用保存/更新 API
       const response = await fetch("/api/persona-posts", {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          personaId: state.selectedPersonaId,
-          title: state.finalPost.title,
-          content: state.finalPost.content,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(isUpdate ? "更新失败" : "保存失败");
+      }
+
+      const data = await response.json();
+      const savedPost = data.post;
+
+      if (savedPost) {
+        // 将数据库ID等信息写回预览用的 finalPost
+        setFinalPost({
+          ...state.finalPost,
+          title: nextTitle,
+          content: nextContent,
+          id: savedPost.id,
+          status: savedPost.status,
           metadata: {
-            ...state.finalPost.metadata,
+            ...(state.finalPost.metadata || {}),
+            ...(savedPost.metadata || {}),
             posterUrl: state.posterUrl,
             tags: state.tags,
             platform: state.platform,
           },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("保存失败");
+        });
       }
 
       // 成功后关闭对话框

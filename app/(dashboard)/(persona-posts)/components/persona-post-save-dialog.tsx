@@ -29,7 +29,7 @@ export interface PersonaPostSaveDialogProps {
   onClose: () => void;
   post: PersonaPostResult | null;
   posterUrl: string | null;
-  onSave: () => Promise<void>;
+  onSave: (payload: { title: string; content: string }) => Promise<void>;
   state: PersonaPostStateApi;
 }
 
@@ -56,10 +56,13 @@ export function PersonaPostSaveDialog({
     }
   }, [post, state]);
 
+  // 是否需要强制选择人设：新建帖子时需要，编辑已有帖子（有 id）时不需要
+  const requirePersona = !post?.id;
+
   const handleSave = async () => {
     try {
       setSaving(true);
-      await onSave();
+      await onSave({ title, content });
       onClose();
     } catch (error) {
       console.error("Failed to save:", error);
@@ -168,8 +171,8 @@ export function PersonaPostSaveDialog({
             </div>
           )}
 
-          {/* 人设提示 */}
-          {!state.state.selectedPersonaId && (
+          {/* 人设提示：仅在新建帖子且未选择人设时提示 */}
+          {requirePersona && !state.state.selectedPersonaId && (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
                 请先在左侧选择一个人设
@@ -184,7 +187,7 @@ export function PersonaPostSaveDialog({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={saving || !state.state.selectedPersonaId}
+            disabled={saving || (requirePersona && !state.state.selectedPersonaId)}
           >
             {saving ? "保存中..." : "确认保存"}
           </Button>

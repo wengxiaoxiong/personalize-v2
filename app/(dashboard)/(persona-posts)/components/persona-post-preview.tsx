@@ -12,24 +12,32 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { PosterCanvas } from "@/components/persona-post/poster-canvas";
 import type { PersonaPostResult } from "@/modules/agent/adapters/persona-post";
-import { Save, Image as ImageIcon, X, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Loader2, Copy, Trash2, Pencil } from "lucide-react";
 
 export interface PersonaPostPreviewProps {
   post: PersonaPostResult | null;
   posterUrl: string | null;
   generatingPoster: boolean;
-  onSave: () => void;
-  onClose: () => void;
+  /** 复制当前帖子（不传则使用内置复制到剪贴板逻辑） */
+  onCopy?: () => void;
+  /** 编辑当前帖子（例如回填到输入框） */
+  onEdit?: () => void;
+  /** 删除当前帖子（例如清空预览） */
+  onDelete?: () => void;
 }
 
 export function PersonaPostPreview({
   post,
   posterUrl,
   generatingPoster,
-  onSave,
-  onClose,
+  onCopy,
+  onEdit,
+  onDelete,
 }: PersonaPostPreviewProps) {
   const [showCanvas, setShowCanvas] = React.useState(false);
+  const [showFullContent, setShowFullContent] = React.useState(false);
+
+  const MAX_PREVIEW_CHARS = 160;
 
   const handleImageGenerated = useCallback(
     async (dataUrl: string) => {
@@ -70,108 +78,162 @@ export function PersonaPostPreview({
       {/* 顶部操作栏 */}
       <div className="flex items-center justify-between p-4 border-b">
         <h3 className="font-semibold">帖子预览</h3>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* 复制 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => {
+              if (onCopy) {
+                onCopy();
+                return;
+              }
+              if (!post) return;
+              const text = `${post.title}\n\n${post.content}`;
+              if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(text).catch((err) => {
+                  console.error("Failed to copy post:", err);
+                });
+              }
+            }}
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+
+          {/* 编辑 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => {
+              if (onEdit) onEdit();
+            }}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+
+          {/* 删除 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive"
+            onClick={() => {
+              if (onDelete) onDelete();
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* 内容区 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* 标题 */}
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">
-            标题
-          </h4>
-          <h2 className="text-xl font-bold">{post.title}</h2>
-        </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="space-y-4 rounded-lg border bg-card/70 shadow-sm p-4">
+          {/* 标题 */}
+          <div>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">
+              标题
+            </h4>
+            <h2 className="text-xl font-bold">{post.title}</h2>
+          </div>
 
-        <Separator />
+          <Separator />
 
-        {/* 内容 */}
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">
-            内容
-          </h4>
-          <div className="prose dark:prose-invert max-w-none">
-            <p className="whitespace-pre-wrap">{post.content}</p>
+          {/* 内容（可折叠） */}
+          <div>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">
+              内容
+            </h4>
+            <div className="prose dark:prose-invert max-w-none">
+              <p className="whitespace-pre-wrap">
+                {showFullContent || post.content.length <= MAX_PREVIEW_CHARS
+                  ? post.content
+                  : `${post.content.slice(0, MAX_PREVIEW_CHARS)}...`}
+              </p>
+            </div>
+            {post.content.length > MAX_PREVIEW_CHARS && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 px-0 text-xs text-primary"
+                onClick={() => setShowFullContent((v) => !v)}
+              >
+                {showFullContent ? "收起内容" : "查看更多"}
+              </Button>
+            )}
+          </div>
+
+          {/* 标签 */}
+          {post.tags && post.tags.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                  标签
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {post.tags.map((tag, index) => (
+                    <Badge key={index} variant="secondary">
+                      #{tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 大字报生成 */}
+          <Separator />
+          <div>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">
+              大字报配图
+            </h4>
+            {!showCanvas && !posterUrl && (
+              <Button
+                onClick={() => setShowCanvas(true)}
+                variant="outline"
+                className="w-full"
+                disabled={generatingPoster}
+              >
+                {generatingPoster ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    生成大字报
+                  </>
+                )}
+              </Button>
+            )}
+
+            {showCanvas && (
+              <div className="mt-4">
+                <PosterCanvas
+                  title={post.title}
+                  content={post.content}
+                  onImageGenerated={handleImageGenerated}
+                />
+              </div>
+            )}
+
+            {posterUrl && !showCanvas && (
+              <div className="mt-4">
+                <img
+                  src={posterUrl}
+                  alt="大字报"
+                  className="w-full border rounded-lg"
+                />
+              </div>
+            )}
           </div>
         </div>
-
-        {/* 标签 */}
-        {post.tags && post.tags.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                标签
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {post.tags.map((tag, index) => (
-                  <Badge key={index} variant="secondary">
-                    #{tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* 大字报生成 */}
-        <Separator />
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">
-            大字报配图
-          </h4>
-          {!showCanvas && !posterUrl && (
-            <Button
-              onClick={() => setShowCanvas(true)}
-              variant="outline"
-              className="w-full"
-              disabled={generatingPoster}
-            >
-              {generatingPoster ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  生成中...
-                </>
-              ) : (
-                <>
-                  <ImageIcon className="h-4 w-4 mr-2" />
-                  生成大字报
-                </>
-              )}
-            </Button>
-          )}
-
-          {showCanvas && (
-            <div className="mt-4">
-              <PosterCanvas
-                title={post.title}
-                content={post.content}
-                onImageGenerated={handleImageGenerated}
-              />
-            </div>
-          )}
-
-          {posterUrl && !showCanvas && (
-            <div className="mt-4">
-              <img
-                src={posterUrl}
-                alt="大字报"
-                className="w-full border rounded-lg"
-              />
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* 底部操作栏 */}
-      <div className="p-4 border-t">
-        <Button onClick={onSave} className="w-full" size="lg">
-          <Save className="h-4 w-4 mr-2" />
-          保存帖子
-        </Button>
-      </div>
+      {/* 底部已去掉“保存帖子”按钮，改为在卡片顶部提供操作按钮 */}
     </div>
   );
 }

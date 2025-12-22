@@ -57,8 +57,12 @@ export interface PersonaPostMetadata {
  * 帖子生成结果
  */
 export interface PersonaPostResult {
+  /** 数据库ID（保存后才会有） */
+  id?: string;
   title: string;
   content: string;
+  /** 发布状态（可选） */
+  status?: "draft" | "published" | "archived";
   tags?: string[];
   platform?: string;
   metadata?: PersonaPostMetadata;
