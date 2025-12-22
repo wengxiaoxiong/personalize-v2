@@ -22,7 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import type { PersonaPostResult } from "@/modules/agent/adapters/persona-post";
 import type { PersonaPostStateApi } from "@/modules/persona-post/usePersonaPostState";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
+import { usePosterUrl } from "../hooks/use-poster-url";
 
 export interface PersonaPostSaveDialogProps {
   open: boolean;
@@ -45,6 +46,17 @@ export function PersonaPostSaveDialog({
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
   const [tagInput, setTagInput] = React.useState("");
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // 从 metadata.posterPath 获取预签名 URL
+  // 优先使用 posterPath（数据库中的真实路径），如果不存在才使用传入的 posterUrl（刚生成时）
+  const posterPath = post?.metadata?.posterPath as string | undefined;
+  const { url: signedPosterUrl, loading: loadingSignedUrl } = usePosterUrl(
+    posterPath || null
+  );
+
+  // 优先使用预签名 URL（从 posterPath 获取），否则使用传入的 posterUrl（刚生成时）
+  const displayPosterUrl = signedPosterUrl || posterUrl;
 
   React.useEffect(() => {
     if (post) {
@@ -86,6 +98,60 @@ export function PersonaPostSaveDialog({
     if (e.key === "Enter") {
       e.preventDefault();
       handleAddTag();
+    }
+  };
+
+  // 选择/更换封面：上传用户自选图片到 TOS，并更新 posterUrl / posterPath
+  const handleCoverChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !post) return;
+
+    try {
+      const reader = new FileReader();
+
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch("/api/generate-poster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageData: dataUrl,
+          title,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to upload custom cover:", await response.text());
+        return;
+      }
+
+      const result = await response.json();
+      const nextPosterUrl: string | null = result.posterUrl ?? null;
+      const nextPosterPath: string | undefined = result.objectKey;
+
+      // 更新全局状态中的 posterUrl，方便其他地方使用
+      state.setPosterUrl(nextPosterUrl);
+
+      // 同步更新当前 post 的 metadata，写入 posterUrl & posterPath
+      state.setFinalPost({
+        ...post,
+        metadata: {
+          ...(post.metadata || {}),
+          posterUrl: nextPosterUrl ?? undefined,
+          posterPath: nextPosterPath,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to change cover:", error);
+    } finally {
+      // 清空 input，避免同一文件无法再次触发 change
+      if (event.target) {
+        event.target.value = "";
+      }
     }
   };
 
@@ -160,16 +226,51 @@ export function PersonaPostSaveDialog({
           </div>
 
           {/* 大字报预览 */}
-          {posterUrl && (
-            <div className="space-y-2">
-              <Label>大字报配图</Label>
-              <img
-                src={posterUrl}
-                alt="大字报预览"
-                className="w-full max-w-sm border rounded-lg"
+          <div className="space-y-2">
+            <Label>大字报配图（封面）</Label>
+            {displayPosterUrl ? (
+              <>
+                {loadingSignedUrl ? (
+                  <div className="flex items-center justify-center h-48 border rounded-lg">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <img
+                    src={displayPosterUrl}
+                    alt="大字报预览"
+                    className="w-full max-w-sm border rounded-lg"
+                    onError={(e) => {
+                      console.error(
+                        "[PersonaPost] failed to load poster image in save dialog:",
+                        { posterUrl: displayPosterUrl, error: e }
+                      );
+                    }}
+                  />
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                暂无封面，可上传一张图片作为封面
+              </p>
+            )}
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleCoverChange}
               />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {displayPosterUrl ? "更换封面" : "上传封面"}
+              </Button>
             </div>
-          )}
+          </div>
 
           {/* 人设提示：仅在新建帖子且未选择人设时提示 */}
           {requirePersona && !state.state.selectedPersonaId && (

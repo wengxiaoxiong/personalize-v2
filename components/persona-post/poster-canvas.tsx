@@ -11,11 +11,32 @@ import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 
+export interface PosterStyle {
+  backgroundStyle: number; // 0-5
+  showDecoration: boolean;
+  decorationPattern?: string;
+  simplifiedText: string;
+  textColor: string;
+  fontSize: number;
+  emojis: string[];
+  emotion?: string;
+  theme?: string;
+}
+
 export interface PosterCanvasProps {
   title: string;
   content: string;
   onImageGenerated?: (dataUrl: string) => void;
   className?: string;
+  /**
+   * 是否自动对内容做精简（截断到一定长度）
+   * 默认开启，保证画面上文字不会太多
+   */
+  autoTrimContent?: boolean;
+  /**
+   * AI 生成的样式方案（如果提供，将使用此方案而非随机）
+   */
+  aiStyle?: PosterStyle;
 }
 
 export function PosterCanvas({
@@ -23,9 +44,12 @@ export function PosterCanvas({
   content,
   onImageGenerated,
   className,
+  autoTrimContent = true,
+  aiStyle,
 }: PosterCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageDataUrl = useRef<string>("");
+  const styleSeedRef = useRef<number>(Math.random());
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -37,68 +61,134 @@ export function PosterCanvas({
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 设置背景渐变
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, "#667eea");
-    gradient.addColorStop(1, "#764ba2");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // ========= 背景样式（优先使用 AI 方案，否则随机）=========
+    const bgStyle = aiStyle?.backgroundStyle ?? Math.floor(styleSeedRef.current * 6); // 0-5 六种背景样式
 
-    // 设置标题样式
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 48px sans-serif";
-    ctx.textAlign = "center";
-
-    // 绘制标题（支持多行）
-    const titleLines = wrapText(ctx, title, canvas.width - 80);
-    let y = 120;
-    titleLines.forEach((line) => {
-      ctx.fillText(line, canvas.width / 2, y);
-      y += 60;
-    });
-
-    // 绘制分割线
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(100, y + 20);
-    ctx.lineTo(canvas.width - 100, y + 20);
-    ctx.stroke();
-
-    // 设置内容样式
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "28px sans-serif";
-    ctx.textAlign = "left";
-
-    // 绘制内容（支持多行）
-    const contentLines = wrapText(ctx, content, canvas.width - 120);
-    y += 80;
-    contentLines.slice(0, 15).forEach((line) => {
-      // 最多显示15行
-      ctx.fillText(line, 60, y);
-      y += 40;
-    });
-
-    // 如果内容太长，显示省略号
-    if (contentLines.length > 15) {
-      ctx.fillText("...", 60, y);
+    switch (bgStyle) {
+      case 0:
+        // 纯白背景
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        break;
+      case 1:
+        // 浅粉渐变
+        const gradient1 = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient1.addColorStop(0, "#fff5f5");
+        gradient1.addColorStop(1, "#ffe5e5");
+        ctx.fillStyle = gradient1;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        break;
+      case 2:
+        // 浅蓝渐变
+        const gradient2 = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient2.addColorStop(0, "#f0f9ff");
+        gradient2.addColorStop(1, "#e0f2fe");
+        ctx.fillStyle = gradient2;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        break;
+      case 3:
+        // 浅紫渐变
+        const gradient3 = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient3.addColorStop(0, "#faf5ff");
+        gradient3.addColorStop(1, "#f3e8ff");
+        ctx.fillStyle = gradient3;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        break;
+      case 4:
+        // 浅绿渐变
+        const gradient4 = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient4.addColorStop(0, "#f0fdf4");
+        gradient4.addColorStop(1, "#dcfce7");
+        ctx.fillStyle = gradient4;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        break;
+      case 5:
+        // 浅黄渐变（新增）
+        const gradient5 = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient5.addColorStop(0, "#fffbeb");
+        gradient5.addColorStop(1, "#fef3c7");
+        ctx.fillStyle = gradient5;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        break;
     }
 
-    // 绘制底部装饰
-    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+    // 装饰纹理（使用 AI 方案或随机）
+    const showDecoration = aiStyle?.showDecoration ?? (styleSeedRef.current > 0.5);
+    if (showDecoration) {
+      ctx.save();
+      ctx.globalAlpha = 0.04 + styleSeedRef.current * 0.04; // 0.04-0.08 透明度
+      ctx.fillStyle = "#000000";
+      const patterns = ["?", "•", "○", "◇"];
+      const pattern = aiStyle?.decorationPattern ?? patterns[Math.floor(styleSeedRef.current * patterns.length)];
+      ctx.font = `bold ${400 + styleSeedRef.current * 200}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(pattern, canvas.width / 2, canvas.height / 2);
+      ctx.restore();
+    }
 
-    // 绘制底部文字
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "20px sans-serif";
+    // ========= 文案：使用 AI 精简文案或原始内容 =========
+    const displayText = aiStyle?.simplifiedText ?? (() => {
+      const MAX_CHARS = 40;
+      const rawText = title && title.trim().length > 0 ? title.trim() : content.trim();
+      return autoTrimContent && rawText.length > MAX_CHARS
+        ? `${rawText.slice(0, MAX_CHARS)}...`
+        : rawText;
+    })();
+
+    // 文本样式（使用 AI 方案或随机）
+    const textColor = aiStyle?.textColor ?? (() => {
+      const textColors = ["#222222", "#1a1a1a", "#2d2d2d", "#1e293b", "#334155"];
+      return textColors[Math.floor(styleSeedRef.current * textColors.length)];
+    })();
+    const fontSize = aiStyle?.fontSize ?? (56 + Math.floor(styleSeedRef.current * 16));
+    
+    ctx.fillStyle = textColor;
+    ctx.font =
+      `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText("由AI智能生成", canvas.width / 2, canvas.height - 50);
+    ctx.textBaseline = "middle";
+
+    // 计算多行文本，并垂直居中
+    const maxWidth = canvas.width - 160; // 左右保留边距
+    const lines = wrapText(ctx, displayText, maxWidth);
+    const lineHeight = fontSize * 1.2; // 根据字体大小动态调整行高
+    const totalHeight = lines.length * lineHeight;
+    let y = canvas.height / 2 - totalHeight / 2;
+
+    lines.forEach((line) => {
+      ctx.fillText(line, canvas.width / 2, y);
+      y += lineHeight;
+    });
+
+    // ========= Emoji 贴纸（使用 AI 方案或随机）=========
+    const emojis = aiStyle?.emojis ?? (() => {
+      const defaultEmojis = [
+        "🥺", "😊", "✨", "💫", "🌟", "💖", "💕", "🌸", "🌺", "🌻",
+        "🍀", "🌈", "⭐", "💝", "🎀", "🎈", "🎉", "🎊", "💯", "🔥"
+      ];
+      return [defaultEmojis[Math.floor(styleSeedRef.current * defaultEmojis.length)]];
+    })();
+
+    // 绘制多个 emoji（最多3个），分布在右下角区域
+    emojis.slice(0, 3).forEach((emoji, index) => {
+      const emojiSize = 80 + Math.floor(styleSeedRef.current * 40); // 80-120px
+      const baseX = canvas.width - 60;
+      const baseY = canvas.height - 60;
+      const offsetX = index * (emojiSize * 0.8); // 横向排列
+      const offsetY = index % 2 === 0 ? 0 : -emojiSize * 0.6; // 错开排列
+      
+      ctx.font = `${emojiSize}px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'`;
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(emoji, baseX - offsetX, baseY + offsetY);
+    });
 
     // 生成图片并回调
     const dataUrl = canvas.toDataURL("image/png");
     imageDataUrl.current = dataUrl;
     onImageGenerated?.(dataUrl);
-  }, [title, content, onImageGenerated]);
+  }, [title, content, onImageGenerated, aiStyle]);
 
   const handleDownload = () => {
     if (!imageDataUrl.current) return;
@@ -111,7 +201,7 @@ export function PosterCanvas({
 
   return (
     <div className={className}>
-      <div className="relative">
+      <div className="flex flex-col items-center">
         <canvas
           ref={canvasRef}
           width={900}
@@ -120,7 +210,7 @@ export function PosterCanvas({
         />
         <Button
           onClick={handleDownload}
-          className="absolute bottom-4 right-4"
+          className="mt-4"
           size="sm"
           variant="secondary"
         >

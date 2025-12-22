@@ -10,9 +10,10 @@ import React, { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { PosterCanvas } from "@/components/persona-post/poster-canvas";
+import { PosterCanvas, type PosterStyle } from "@/components/persona-post/poster-canvas";
 import type { PersonaPostResult } from "@/modules/agent/adapters/persona-post";
 import { Image as ImageIcon, Loader2, Copy, Trash2, Pencil } from "lucide-react";
+import { usePosterUrl } from "../hooks/use-poster-url";
 
 export interface PersonaPostPreviewProps {
   post: PersonaPostResult | null;
@@ -36,12 +37,24 @@ export function PersonaPostPreview({
 }: PersonaPostPreviewProps) {
   const [showCanvas, setShowCanvas] = React.useState(false);
   const [showFullContent, setShowFullContent] = React.useState(false);
+  const [aiStyle, setAiStyle] = React.useState<PosterStyle | null>(null);
+  const [loadingAiStyle, setLoadingAiStyle] = React.useState(false);
 
   const MAX_PREVIEW_CHARS = 160;
 
+  // 从 metadata.posterPath 获取预签名 URL
+  // 优先使用 posterPath（数据库中的真实路径），如果不存在才使用传入的 posterUrl（刚生成时）
+  const posterPath = post?.metadata?.posterPath as string | undefined;
+  const { url: signedPosterUrl, loading: loadingSignedUrl } = usePosterUrl(
+    posterPath || null
+  );
+
+  // 优先使用预签名 URL（从 posterPath 获取），否则使用传入的 posterUrl（刚生成时）
+  const displayPosterUrl = signedPosterUrl || posterUrl;
+
   const handleImageGenerated = useCallback(
     async (dataUrl: string) => {
-      // 自动上传到服务器
+      // 自动上传到服务器，并在有 postId 时立刻写入数据库 metadata（posterPath + posterUrl）
       try {
         const response = await fetch("/api/generate-poster", {
           method: "POST",
@@ -52,10 +65,34 @@ export function PersonaPostPreview({
           }),
         });
 
-        if (response.ok) {
-          await response.json();
-          // posterUrl会通过orchestrator更新
+        if (!response.ok) {
+          console.error("Failed to upload poster:", await response.text());
+          return;
         }
+
+        const result = await response.json();
+        const nextPosterPath: string | undefined = result.objectKey;
+
+        // 如果当前帖子已经有数据库ID，直接更新数据库中的 metadata（只存 path，不存 URL）
+        if (post?.id && nextPosterPath) {
+          try {
+            await fetch("/api/persona-posts", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                postId: post.id,
+                metadata: {
+                  ...(post.metadata || {}),
+                  posterPath: nextPosterPath,
+                },
+              }),
+            });
+          } catch (e) {
+            console.error("Failed to persist poster metadata:", e);
+          }
+        }
+
+        // posterUrl 的前端状态更新会通过后续重新加载历史列表或编辑回填时体现出来
       } catch (error) {
         console.error("Failed to upload poster:", error);
       }
@@ -189,17 +226,44 @@ export function PersonaPostPreview({
             <h4 className="text-sm font-medium text-muted-foreground mb-2">
               大字报配图
             </h4>
-            {!showCanvas && !posterUrl && (
+            {!showCanvas && !displayPosterUrl && (
               <Button
-                onClick={() => setShowCanvas(true)}
+                onClick={async () => {
+                  // 先调用 AI 生成样式方案
+                  setLoadingAiStyle(true);
+                  try {
+                    const response = await fetch("/api/optimize-poster", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: post.title,
+                        content: post.content,
+                      }),
+                    });
+
+                    if (response.ok) {
+                      const result = await response.json();
+                      if (result.ok && result.style) {
+                        setAiStyle(result.style);
+                        console.log("[PersonaPost] AI style generated:", result.style);
+                      }
+                    }
+                  } catch (error) {
+                    console.error("[PersonaPost] Failed to get AI style:", error);
+                    // AI 失败时使用随机样式（aiStyle 为 null）
+                  } finally {
+                    setLoadingAiStyle(false);
+                    setShowCanvas(true);
+                  }
+                }}
                 variant="outline"
                 className="w-full"
-                disabled={generatingPoster}
+                disabled={generatingPoster || loadingAiStyle}
               >
-                {generatingPoster ? (
+                {generatingPoster || loadingAiStyle ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    生成中...
+                    {loadingAiStyle ? "AI 分析中..." : "生成中..."}
                   </>
                 ) : (
                   <>
@@ -216,17 +280,33 @@ export function PersonaPostPreview({
                   title={post.title}
                   content={post.content}
                   onImageGenerated={handleImageGenerated}
+                  aiStyle={aiStyle || undefined}
                 />
               </div>
             )}
 
-            {posterUrl && !showCanvas && (
+            {displayPosterUrl && !showCanvas && (
               <div className="mt-4">
-                <img
-                  src={posterUrl}
-                  alt="大字报"
-                  className="w-full border rounded-lg"
-                />
+                {loadingSignedUrl ? (
+                  <div className="flex items-center justify-center h-48 border rounded-lg">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <img
+                    src={displayPosterUrl}
+                    alt="大字报"
+                    className="w-full border rounded-lg"
+                    onError={(e) => {
+                      console.error(
+                        "[PersonaPost] failed to load poster image in preview:",
+                        {
+                          posterUrl: displayPosterUrl,
+                          error: e,
+                        }
+                      );
+                    }}
+                  />
+                )}
               </div>
             )}
           </div>

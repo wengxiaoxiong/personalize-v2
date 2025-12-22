@@ -18,6 +18,17 @@ import {
   parsePersonaPostResult,
 } from "@/modules/agent/adapters/persona-post";
 
+// 从完整 URL 中提取对象存储路径（去掉协议和域名）
+function extractPosterPath(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    return u.pathname.replace(/^\/+/, "");
+  } catch {
+    return url.replace(/^https?:\/\/[^/]+\//, "");
+  }
+}
+
 // ========== 类型定义 ==========
 
 export interface UsePersonaPostOrchestratorOptions {
@@ -259,6 +270,12 @@ export function usePersonaPostOrchestrator({
       const nextTitle = payload?.title ?? state.finalPost.title;
       const nextContent = payload?.content ?? state.finalPost.content;
 
+      // 计算要写入 metadata 的海报路径（尽量从当前 posterUrl 提取，兼容旧数据）
+      const existingMetadata = (state.finalPost.metadata || {}) as Record<string, unknown>;
+      const posterPathFromUrl =
+        extractPosterPath(state.posterUrl || (existingMetadata.posterUrl as string | undefined)) ||
+        (existingMetadata.posterPath as string | undefined);
+
       const body = isUpdate
         ? {
             postId: state.finalPost.id,
@@ -267,7 +284,9 @@ export function usePersonaPostOrchestrator({
             status: state.finalPost.status,
             metadata: {
               ...state.finalPost.metadata,
-              posterUrl: state.posterUrl,
+              // 同时保存 posterUrl（方便前端直接用）和 posterPath（用于长期存储）
+              posterUrl: state.posterUrl ?? (existingMetadata.posterUrl as string | undefined),
+              posterPath: posterPathFromUrl,
               tags: state.tags,
               platform: state.platform,
             },
@@ -279,7 +298,8 @@ export function usePersonaPostOrchestrator({
             status: state.finalPost.status,
             metadata: {
               ...state.finalPost.metadata,
-              posterUrl: state.posterUrl,
+              posterUrl: state.posterUrl ?? (existingMetadata.posterUrl as string | undefined),
+              posterPath: posterPathFromUrl,
               tags: state.tags,
               platform: state.platform,
             },

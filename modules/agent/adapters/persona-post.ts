@@ -49,8 +49,10 @@ export interface PersonaPostMetadata {
   images?: string[];
   /** 平台 */
   platform?: "xiaohongshu" | "weibo" | "other";
-  /** 大字报图片链接 */
+  /** 大字报图片链接（方便前端直接展示，可能会变更） */
   posterUrl?: string;
+  /** 大字报对象存储路径（TOS object key，用于长期存储与重新签名） */
+  posterPath?: string;
 }
 
 /**

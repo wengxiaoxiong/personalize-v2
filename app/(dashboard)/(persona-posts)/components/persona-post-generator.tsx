@@ -30,9 +30,26 @@ interface PersonaPostRecord {
   metadata?: {
     tags?: string[];
     platform?: string;
+    /** 完整海报 URL（可能会变更） */
     posterUrl?: string | null;
+    /** 海报对象存储路径（TOS object key） */
+    posterPath?: string | null;
     [key: string]: unknown;
   } | null;
+}
+
+// 注意：现在不再手动拼接 URL，而是通过 usePosterUrl hook 调用 API 获取预签名 URL
+// 这个函数保留是为了兼容性，但实际应该使用 hook
+function buildPosterUrlFromMetadata(
+  metadata: PersonaPostRecord["metadata"]
+): string | null {
+  // 返回 null，让组件使用 usePosterUrl hook 来获取预签名 URL
+  // 如果 metadata 里有旧的 posterUrl（刚生成时），可以临时使用，但最终应该用 path 获取预签名 URL
+  if (!metadata) return null;
+
+  const directUrl = (metadata.posterUrl as string | null) ?? null;
+  // 只返回临时 posterUrl（刚生成时），其他情况返回 null，让 hook 处理
+  return directUrl;
 }
 
 export function PersonaPostGenerator() {
@@ -77,9 +94,9 @@ export function PersonaPostGenerator() {
       const res = await fetch("/api/persona-posts");
       if (!res.ok) return;
       const data = await res.json();
-      // 只展示最新的几条（例如 5 条）
+      // 只展示最新的 6 条
       const posts: PersonaPostRecord[] = Array.isArray(data.posts)
-        ? data.posts.slice(0, 5)
+        ? data.posts.slice(0, 6)
         : [];
       setHistoryPosts(posts);
     } catch (err) {
@@ -148,6 +165,7 @@ export function PersonaPostGenerator() {
   const handleEditPost = useCallback(
     (record?: PersonaPostRecord) => {
       if (record) {
+        console.log("[PersonaPost] edit post record:", record);
         personaPostState.setFinalPost({
           id: record.id,
           title: record.title,
@@ -157,7 +175,9 @@ export function PersonaPostGenerator() {
           platform: record.metadata?.platform,
           metadata: record.metadata || {},
         });
-        personaPostState.setPosterUrl(record.metadata?.posterUrl || null);
+        // 编辑时不再设置 posterUrl，让保存对话框通过 usePosterUrl hook 从 posterPath 获取预签名 URL
+        // 这样可以避免使用旧的、可能无效的 posterUrl
+        personaPostState.setPosterUrl(null);
       } else if (!state.finalPost) {
         return;
       }
@@ -325,7 +345,7 @@ export function PersonaPostGenerator() {
                   platform: post.metadata?.platform,
                   metadata: post.metadata || {},
                 }}
-                posterUrl={post.metadata?.posterUrl || null}
+                posterUrl={null}
                 generatingPoster={false}
                 onCopy={() => handleCopyPost(post)}
                 onEdit={() => handleEditPost(post)}
