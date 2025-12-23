@@ -30,10 +30,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const payload = await req.json();
-    const messages: UIMessage[] = payload?.messages ?? [];
-    const personaId = payload?.personaId;
-    const projectId = payload?.projectId;
+    const payload = await req.json() as {
+      messages?: unknown;
+      personaId?: string;
+      projectId?: string;
+    };
+    const messages: UIMessage[] = Array.isArray(payload?.messages) ? payload.messages as UIMessage[] : [];
+    const personaId = typeof payload?.personaId === 'string' ? payload.personaId : undefined;
+    const projectId = typeof payload?.projectId === 'string' ? payload.projectId : undefined;
 
     if (!Array.isArray(messages)) {
       return NextResponse.json(
@@ -54,7 +58,8 @@ export async function POST(req: Request) {
 
       if (project && project.metadata) {
         const metadata = project.metadata as Record<string, unknown>;
-        knowledgeBase = (metadata.aiKnowledgeBase as string) || null;
+        const aiKnowledgeBase = metadata.aiKnowledgeBase;
+        knowledgeBase = typeof aiKnowledgeBase === 'string' ? aiKnowledgeBase : null;
       }
     }
 

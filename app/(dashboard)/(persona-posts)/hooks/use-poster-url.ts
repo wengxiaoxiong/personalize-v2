@@ -32,7 +32,7 @@ export function usePosterUrl(posterPath: string | null | undefined): {
 
       try {
         const response = await fetch(
-          `/api/persona-post-poster?path=${encodeURIComponent(posterPath)}`
+          `/api/persona-post-poster?path=${encodeURIComponent(posterPath as string)}`
         );
 
         if (cancelled) return;

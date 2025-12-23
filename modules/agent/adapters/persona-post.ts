@@ -39,10 +39,19 @@ export const PERSONA_POST_GENERATE_KEYWORDS = [
 
 // ========== 类型定义 ==========
 
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 /**
- * 帖子元数据
+ * 帖子元数据（持久化到 Prisma JSON 字段，需要满足 JSON 对象结构）
  */
 export interface PersonaPostMetadata {
+  [key: string]: JsonValue | undefined;
   /** 标签 */
   tags?: string[];
   /** 图片链接（包括大字报） */

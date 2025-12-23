@@ -31,6 +31,13 @@ export type ActionState = {
 };
 
 // JSON 字段的类型定义
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 export type ProfessionalBackground = {
   background?: string;
   tagline?: string;
@@ -56,6 +63,7 @@ export type ProfessionalPreferences = {
 };
 
 export interface ProjectAssetMetadata {
+  [key: string]: JsonValue | undefined;
   textContent?: string;
   fileType?: string;
   fileSize?: number;
@@ -65,6 +73,7 @@ export interface ProjectAssetMetadata {
 }
 
 export interface KnowledgeBaseMetadata {
+  [key: string]: JsonValue | undefined;
   aiKnowledgeBase?: string;
   summary?: string;
   keyPoints?: string[];

@@ -1,7 +1,7 @@
 /**
- * Optimize Poster API (Enhanced)
+ * Optimize Poster API
  *
- * 使用 AI 分析帖子内容，生成具有小红书风格、高差异化的视觉方案
+ * 使用 AI 分析帖子内容，生成适合小红书风格的大字报视觉方案
  */
 
 import { NextResponse } from "next/server";
@@ -12,134 +12,136 @@ import { z } from "zod";
 
 export const maxDuration = 30;
 
-// 扩展后的 Schema（兼容旧字段 + 新设计语义）
 const PosterStyleSchema = z.object({
-  // 兼容旧字段：背景样式 0-5
+  // 背景样式：0=纯白, 1=浅粉渐变, 2=浅蓝渐变, 3=浅紫渐变, 4=浅绿渐变, 5=浅黄渐变
   backgroundStyle: z.number().int().min(0).max(5),
+  // 是否显示装饰纹理
   showDecoration: z.boolean(),
-  decorationPattern: z.enum(["?", "•", "○", "◇"]).optional(),
-
-  // 新增：精简文案（保持）
-  simplifiedText: z.string().min(10).max(60),
-
-  // 文字样式
-  textColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  // 装饰图案：?, •, ○, ◇
+  decorationPattern: z.string().optional(),
+  // 精简后的文案（1-2句话，20-40字）
+  simplifiedText: z.string(),
+  // 文字颜色（深色系）
+  textColor: z.string(),
+  // 字体大小（56-72px）
   fontSize: z.number().int().min(56).max(72),
-  fontWeight: z.enum(["normal", "bold"]),
-  textPosition: z.enum(["center", "left-top", "right-bottom", "floating"]),
-
-  // Emoji
+  // Emoji 列表（1-3个）
   emojis: z.array(z.string()).min(1).max(3),
-
-  // 设计增强
-  backgroundTexture: z.enum(["none", "noise", "watercolor", "paper"]),
-  decorationElements: z.array(z.enum(["hand-line", "dashed-box", "sticker", "border"])).max(2),
-  emojiPlacement: z.enum(["corner", "inline", "top", "floating"]),
-
-  // 语义标签
+  // 情感标签（用于匹配风格）
   emotion: z.string(),
+  // 主题标签
   theme: z.string(),
 });
 
 export async function POST(req: Request) {
   try {
+    // 验证用户身份
     const user = await getSessionUser();
     if (!user) {
-      return NextResponse.json({ ok: false, message: "请先登录" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, message: "请先登录" },
+        { status: 401 }
+      );
     }
 
     const { title, content } = await req.json();
+
     if (!title && !content) {
-      return NextResponse.json({ ok: false, message: "缺少内容" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, message: "缺少内容" },
+        { status: 400 }
+      );
     }
 
     const fullText = `${title || ""}\n${content || ""}`.trim();
 
-    // === 调用 AI 生成增强版视觉方案 ===
+    // 调用 AI 生成视觉方案
     const result = await generateText({
       model: deepseek("deepseek-chat"),
-      temperature: 0.8,
-      system: `你是一个专业的小红书视觉设计师，擅长将文字转化为有温度、有生活感、高互动率的大字报。
-你的任务是分析内容的情感、主题和人设，生成一个详细的视觉设计方案。
+      system: `你是一个专业的小红书内容视觉设计师。你的任务是根据帖子内容，生成适合小红书风格的大字报视觉方案。
 
-小红书风格核心：
-- 背景：浅色系 + 可选纹理（噪点、水彩、纸纹）
-- 布局：不局限于居中！可左上、右下、浮动排版
-- 装饰：手绘线条、虚线框、贴纸风、毛边
-- Emoji：生活化（🌸✨💖🥺😊🌈💫🌟），可嵌入文字或浮动
-- 整体：清新、有呼吸感、有细节、避免模板化
+小红书风格特点：
+- 背景：清新浅色系（纯白、浅粉、浅蓝、浅紫、浅绿、浅黄）
+- 文字：大号粗体、居中、易读、有温度
+- Emoji：可爱、生活化、有温度（如：🌸 ✨ 💖 🥺 😊 🌈 💫 🌟）
+- 整体：简洁、清新、有活力、有生活感
 
-请返回严格符合以下 JSON schema 的对象：`,
-      prompt: `内容如下：
+请分析内容的情感、主题，然后生成最匹配的视觉方案。`,
+      prompt: `请分析以下帖子内容，生成适合小红书风格的大字报视觉方案：
+
 标题：${title || "无"}
 内容：${content || "无"}
 
-请分析后返回 JSON（不要任何其他文字）：
+请返回 JSON 格式，包含以下字段：
 {
-  "backgroundStyle": 0-5,
-  "showDecoration": true/false,
-  "decorationPattern": "?" 或 "•" 或 "○" 或 "◇",
-  "simplifiedText": "精简到20-50字，有温度、抓重点",
-  "textColor": "#222222" 等深色,
-  "fontSize": 56-72,
-  "fontWeight": "bold" 或 "normal",
-  "textPosition": "center" | "left-top" | "right-bottom" | "floating",
-  "emojis": ["✨", "🌸"],
-  "backgroundTexture": "none" | "noise" | "watercolor" | "paper",
-  "decorationElements": ["hand-line", "dashed-box"],
-  "emojiPlacement": "corner" | "inline" | "top" | "floating",
-  "emotion": "如：温暖、开心、专业、治愈",
-  "theme": "如：生活分享、旅行、护肤、职场"
-}`,
+  "backgroundStyle": 0-5的整数（0=纯白, 1=浅粉渐变, 2=浅蓝渐变, 3=浅紫渐变, 4=浅绿渐变, 5=浅黄渐变），
+  "showDecoration": true/false（是否显示装饰纹理，50%概率），
+  "decorationPattern": "?" 或 "•" 或 "○" 或 "◇"（如果showDecoration为true），
+  "simplifiedText": "精简后的文案，1-2句话，20-40字，要吸引人、有温度",
+  "textColor": "#222222" 或 "#1a1a1a" 或 "#2d2d2d" 或 "#1e293b" 或 "#334155"（深色系），
+  "fontSize": 56-72之间的整数（根据内容重要性调整），
+  "emojis": ["emoji1", "emoji2"]（1-3个，根据内容情感和主题选择，要可爱、生活化），
+  "emotion": "情感标签，如：开心、温暖、专业、自然、浪漫等",
+  "theme": "主题标签，如：生活分享、美食探店、旅行、穿搭、护肤等"
+}
+
+要求：
+1. simplifiedText 要精简有力，抓住核心观点，适合大字报展示
+2. emojis 要符合内容情感和主题，选择可爱、生活化的表情
+3. backgroundStyle 要根据情感选择（开心→粉色/黄色，专业→蓝色，自然→绿色，浪漫→紫色）
+4. 整体风格要符合小红书：清新、有温度、有生活感`,
+      temperature: 0.7,
     });
 
-    // === 解析 AI 响应 ===
-    let parsedJson;
+    // 解析 AI 返回的 JSON
+    let styleData;
     try {
-      const text = result.text.trim();
-      // 提取 JSON（兼容代码块或裸 JSON）
-      const jsonMatch = text.match(/```(?:json)?\s*({[\s\S]*})\s*```/) || text.match(/{[\s\S]*}/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : text;
-      parsedJson = JSON.parse(jsonStr);
-    } catch (e) {
-      console.error("[Poster] JSON parse failed:", e);
-      throw new Error("AI 返回格式无效");
+      // 尝试提取 JSON（可能被 markdown 代码块包裹）
+      const jsonMatch = result.text.match(/```json\s*([\s\S]*?)\s*```/) || 
+                        result.text.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : result.text;
+      styleData = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error("[OptimizePoster] Failed to parse AI response:", parseError);
+      // 降级方案：使用默认值
+      styleData = {
+        backgroundStyle: 0,
+        showDecoration: false,
+        simplifiedText: title || content.slice(0, 40) + "...",
+        textColor: "#222222",
+        fontSize: 64,
+        emojis: ["✨"],
+        emotion: "中性",
+        theme: "生活分享",
+      };
     }
 
-    // === 验证并填充默认值 ===
+    // 验证并规范化数据
     const validated = PosterStyleSchema.parse({
-      backgroundStyle: Math.max(0, Math.min(5, parsedJson.backgroundStyle ?? 0)),
-      showDecoration: parsedJson.showDecoration ?? false,
-      decorationPattern: parsedJson.decorationPattern || "•",
-      simplifiedText: (parsedJson.simplifiedText || fullText.slice(0, 50)).slice(0, 60),
-      textColor: parsedJson.textColor?.match(/^#[0-9a-fA-F]{6}$/) ? parsedJson.textColor : "#222222",
-      fontSize: Math.max(56, Math.min(72, parsedJson.fontSize ?? 64)),
-      fontWeight: parsedJson.fontWeight === "bold" ? "bold" : "normal",
-      textPosition: ["center", "left-top", "right-bottom", "floating"].includes(parsedJson.textPosition)
-        ? parsedJson.textPosition
-        : "center",
-      emojis: Array.isArray(parsedJson.emojis) ? parsedJson.emojis.slice(0, 3).filter(e => typeof e === 'string') : ["✨"],
-      backgroundTexture: ["none", "noise", "watercolor", "paper"].includes(parsedJson.backgroundTexture)
-        ? parsedJson.backgroundTexture
-        : "none",
-      decorationElements: Array.isArray(parsedJson.decorationElements)
-        ? parsedJson.decorationElements.filter(e => ["hand-line", "dashed-box", "sticker", "border"].includes(e)).slice(0, 2)
-        : [],
-      emojiPlacement: ["corner", "inline", "top", "floating"].includes(parsedJson.emojiPlacement)
-        ? parsedJson.emojiPlacement
-        : "corner",
-      emotion: parsedJson.emotion || "中性",
-      theme: parsedJson.theme || "生活分享",
+      backgroundStyle: styleData.backgroundStyle ?? 0,
+      showDecoration: styleData.showDecoration ?? false,
+      decorationPattern: styleData.decorationPattern,
+      simplifiedText: styleData.simplifiedText || title || content.slice(0, 40) + "...",
+      textColor: styleData.textColor || "#222222",
+      fontSize: styleData.fontSize ?? 64,
+      emojis: Array.isArray(styleData.emojis) && styleData.emojis.length > 0
+        ? styleData.emojis.slice(0, 3)
+        : ["✨"],
+      emotion: styleData.emotion || "中性",
+      theme: styleData.theme || "生活分享",
     });
 
-    console.log("[OptimizePoster] Generated enhanced style:", {
+    console.log("[OptimizePoster] Generated style:", {
       emotion: validated.emotion,
       theme: validated.theme,
-      position: validated.textPosition,
-      texture: validated.backgroundTexture,
+      backgroundStyle: validated.backgroundStyle,
+      emojis: validated.emojis,
     });
 
-    return NextResponse.json({ ok: true, style: validated });
+    return NextResponse.json({
+      ok: true,
+      style: validated,
+    });
   } catch (error) {
     console.error("Optimize poster failed:", error);
     return NextResponse.json(
@@ -151,3 +153,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

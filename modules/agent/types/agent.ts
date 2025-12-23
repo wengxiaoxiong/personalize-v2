@@ -2,6 +2,9 @@
 import type React from "react";
 import type { UIMessage, UIMessagePart, ToolUIPart, UIDataTypes } from "ai";
 
+// 重新导出 UIMessage，方便其他模块使用
+export type { UIMessage };
+
 export type AgentMessage = UIMessage;
 
 // FIX: 使用 UIDataTypes 满足类型约束，表示我们接受任意结构的 Tool 参数

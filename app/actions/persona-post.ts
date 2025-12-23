@@ -8,8 +8,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import type { Prisma } from "@prisma/client";
 import { dbAvailable, getCurrentUser } from "./utils";
+import type { PersonaPost } from "@/lib/generated/prisma";
 import type { PersonaPostMetadata } from "@/modules/agent/adapters/persona-post";
 
 export async function createPersonaPostAction(data: {
@@ -41,14 +41,14 @@ export async function createPersonaPostAction(data: {
       return { ok: false, message: "人设不存在或无权访问" };
     }
 
-    // 创建帖子
+    // 创建帖子（metadata 是 JSON-safe 对象，直接传给 Prisma）
     const post = await prisma.personaPost.create({
       data: {
         personaId: data.personaId,
         title: data.title,
         content: data.content,
         status: data.status || "draft",
-        metadata: (data.metadata || {}) as Prisma.InputJsonValue,
+        metadata: data.metadata || {},
       },
     });
 
@@ -102,14 +102,14 @@ export async function updatePersonaPostAction(
       return { ok: false, message: "帖子不存在或无权访问" };
     }
 
-    // 更新帖子
+    // 更新帖子（metadata 同样直接传入 JSON-safe 对象）
     await prisma.personaPost.update({
       where: { id: postId },
       data: {
         ...(data.title && { title: data.title }),
         ...(data.content && { content: data.content }),
         ...(data.status && { status: data.status }),
-        ...(data.metadata && { metadata: data.metadata as Prisma.InputJsonValue }),
+        ...(data.metadata && { metadata: data.metadata }),
       },
     });
 
@@ -177,21 +177,19 @@ export async function deletePersonaPostAction(
   }
 }
 
-type PersonaPostWithPersona = Prisma.PersonaPostGetPayload<{
-  include: {
-    persona: {
-      select: {
-        id: true;
-        name: true;
-        avatarUrl: true;
-      };
-    };
-  };
-}>;
-
 export async function getPersonaPostsAction(
   personaId?: string
-): Promise<{ ok: boolean; message: string; posts?: PersonaPostWithPersona[] }> {
+): Promise<{
+  ok: boolean;
+  message: string;
+  posts?: (PersonaPost & {
+    persona: {
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+  })[];
+}> {
   if (!(await dbAvailable())) {
     return { ok: false, message: "数据库未连接" };
   }

@@ -189,21 +189,11 @@ export function PersonaPostPreview({
               内容
             </h4>
             <div className="prose dark:prose-invert max-w-none">
-              <div className="relative text-base text-foreground/90">
-                <p
-                  className={cn(
-                    "whitespace-pre-line break-words",
-                    !showFullContent &&
-                      post.content.length > MAX_PREVIEW_CHARS &&
-                      "line-clamp-4"
-                  )}
-                >
-                  {post.content}
-                </p>
-                {!showFullContent && post.content.length > MAX_PREVIEW_CHARS && (
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
-                )}
-              </div>
+              <p className="whitespace-pre-wrap">
+                {showFullContent || post.content.length <= MAX_PREVIEW_CHARS
+                  ? post.content
+                  : `${post.content.slice(0, MAX_PREVIEW_CHARS)}...`}
+              </p>
             </div>
             {post.content.length > MAX_PREVIEW_CHARS && (
               <Button
