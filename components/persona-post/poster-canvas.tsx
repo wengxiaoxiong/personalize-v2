@@ -201,7 +201,7 @@ export function PosterCanvas({
 
   return (
     <div className={className}>
-      <div className="flex flex-col items-center">
+      <div className="relative flex flex-col items-center">
         <canvas
           ref={canvasRef}
           width={900}
@@ -210,7 +210,7 @@ export function PosterCanvas({
         />
         <Button
           onClick={handleDownload}
-          className="mt-4"
+          className="absolute top-3 right-3 shadow-sm"
           size="sm"
           variant="secondary"
         >

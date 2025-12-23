@@ -21,6 +21,11 @@ import { PersonaPostSaveDialog } from "./persona-post-save-dialog";
 import { PersonaPostSelectors } from "./persona-post-selectors";
 import { Sparkles } from "lucide-react";
 import type { AgentMessage, AgentPart } from "@/modules/agent/types/agent";
+import {
+  createPersonaPostAction,
+  deletePersonaPostAction,
+  getPersonaPostsAction,
+} from "@/app/actions/persona-post";
 
 interface PersonaPostRecord {
   id: string;
@@ -91,12 +96,10 @@ export function PersonaPostGenerator() {
   const loadHistoryPosts = useCallback(async () => {
     try {
       setLoadingHistory(true);
-      const res = await fetch("/api/persona-posts");
-      if (!res.ok) return;
-      const data = await res.json();
+      const res = await getPersonaPostsAction();
       // 只展示最新的 6 条
-      const posts: PersonaPostRecord[] = Array.isArray(data.posts)
-        ? data.posts.slice(0, 6)
+      const posts: PersonaPostRecord[] = Array.isArray(res.posts)
+        ? res.posts.slice(0, 6)
         : [];
       setHistoryPosts(posts);
     } catch (err) {
@@ -122,25 +125,21 @@ export function PersonaPostGenerator() {
       if (!source || !state.selectedPersonaId) return;
 
       try {
-        const res = await fetch("/api/persona-posts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            personaId: state.selectedPersonaId,
-            title: source.title,
-            content: source.content,
-            status: source.status || "draft",
-            metadata: {
-              ...(source.metadata || {}),
-              posterUrl: state.posterUrl,
-              tags: state.tags,
-              platform: state.platform,
-            },
-          }),
+        const res = await createPersonaPostAction({
+          personaId: state.selectedPersonaId,
+          title: source.title,
+          content: source.content,
+          status: (source.status as "draft" | "published") || "draft",
+          metadata: {
+            ...(source.metadata || {}),
+            posterUrl: state.posterUrl ?? undefined,
+            tags: state.tags,
+            platform: state.platform,
+          },
         });
 
         if (!res.ok) {
-          throw new Error("复制失败");
+          throw new Error(res.message || "复制失败");
         }
 
         // 刷新列表
@@ -193,14 +192,10 @@ export function PersonaPostGenerator() {
       const targetId = record?.id ?? state.finalPost?.id;
 
       if (targetId) {
-        fetch("/api/persona-posts", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ postId: targetId }),
-        })
+        deletePersonaPostAction(targetId)
           .then((res) => {
             if (!res.ok) {
-              throw new Error("删除失败");
+              throw new Error(res.message || "删除失败");
             }
             // 删除成功后刷新列表
             loadHistoryPosts();

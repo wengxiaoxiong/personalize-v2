@@ -12,8 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { PosterCanvas, type PosterStyle } from "@/components/persona-post/poster-canvas";
 import type { PersonaPostResult } from "@/modules/agent/adapters/persona-post";
-import { Image as ImageIcon, Loader2, Copy, Trash2, Pencil } from "lucide-react";
+import {
+  Image as ImageIcon,
+  Loader2,
+  Copy,
+  Trash2,
+  Pencil,
+  Download,
+} from "lucide-react";
 import { usePosterUrl } from "../hooks/use-poster-url";
+import { cn } from "@/lib/utils";
+import { updatePersonaPostAction } from "@/app/actions/persona-post";
 
 export interface PersonaPostPreviewProps {
   post: PersonaPostResult | null;
@@ -73,19 +82,14 @@ export function PersonaPostPreview({
         const result = await response.json();
         const nextPosterPath: string | undefined = result.objectKey;
 
-        // 如果当前帖子已经有数据库ID，直接更新数据库中的 metadata（只存 path，不存 URL）
+        // 如果当前帖子已经有数据库ID，直接使用 Server Action 写入 metadata（只存 path，不存 URL）
         if (post?.id && nextPosterPath) {
           try {
-            await fetch("/api/persona-posts", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                postId: post.id,
-                metadata: {
-                  ...(post.metadata || {}),
-                  posterPath: nextPosterPath,
-                },
-              }),
+            await updatePersonaPostAction(post.id, {
+              metadata: {
+                ...(post.metadata || {}),
+                posterPath: nextPosterPath,
+              },
             });
           } catch (e) {
             console.error("Failed to persist poster metadata:", e);
@@ -172,7 +176,9 @@ export function PersonaPostPreview({
             <h4 className="text-sm font-medium text-muted-foreground mb-2">
               标题
             </h4>
-            <h2 className="text-xl font-bold">{post.title}</h2>
+            <h2 className="text-xl font-bold line-clamp-2 break-words">
+              {post.title}
+            </h2>
           </div>
 
           <Separator />
@@ -183,11 +189,21 @@ export function PersonaPostPreview({
               内容
             </h4>
             <div className="prose dark:prose-invert max-w-none">
-              <p className="whitespace-pre-wrap">
-                {showFullContent || post.content.length <= MAX_PREVIEW_CHARS
-                  ? post.content
-                  : `${post.content.slice(0, MAX_PREVIEW_CHARS)}...`}
-              </p>
+              <div className="relative text-base text-foreground/90">
+                <p
+                  className={cn(
+                    "whitespace-pre-line break-words",
+                    !showFullContent &&
+                      post.content.length > MAX_PREVIEW_CHARS &&
+                      "line-clamp-4"
+                  )}
+                >
+                  {post.content}
+                </p>
+                {!showFullContent && post.content.length > MAX_PREVIEW_CHARS && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
+                )}
+              </div>
             </div>
             {post.content.length > MAX_PREVIEW_CHARS && (
               <Button
@@ -286,26 +302,39 @@ export function PersonaPostPreview({
             )}
 
             {displayPosterUrl && !showCanvas && (
-              <div className="mt-4">
+              <div className="mt-4 relative">
                 {loadingSignedUrl ? (
                   <div className="flex items-center justify-center h-48 border rounded-lg">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <img
-                    src={displayPosterUrl}
-                    alt="大字报"
-                    className="w-full border rounded-lg"
-                    onError={(e) => {
-                      console.error(
-                        "[PersonaPost] failed to load poster image in preview:",
-                        {
-                          posterUrl: displayPosterUrl,
-                          error: e,
-                        }
-                      );
-                    }}
-                  />
+                  <>
+                    <img
+                      src={displayPosterUrl}
+                      alt="大字报"
+                      className="w-full border rounded-lg"
+                      onError={(e) => {
+                        console.error(
+                          "[PersonaPost] failed to load poster image in preview:",
+                          {
+                            posterUrl: displayPosterUrl,
+                            error: e,
+                          }
+                        );
+                      }}
+                    />
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="secondary"
+                      className="absolute top-3 right-3 shadow-sm"
+                    >
+                      <a href={displayPosterUrl} download>
+                        <Download className="h-4 w-4 mr-2" />
+                        下载图片
+                      </a>
+                    </Button>
+                  </>
                 )}
               </div>
             )}
