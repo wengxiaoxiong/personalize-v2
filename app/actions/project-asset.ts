@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { client, bucketName } from "@/lib/tos";
 import { dbAvailable, getCurrentUser } from "./utils";
 import type { ActionState, ProjectAssetMetadata } from "./types";
+import type { Prisma } from "@/lib/generated/prisma";
 
 const projectAssetSchema = z.object({
   projectId: z.string().uuid(),
@@ -298,9 +299,9 @@ export async function updateProjectAssetAction(
     }
 
     // metadata 是通过 JSON.parse 得到的纯 JSON 对象
-    // Prisma v5+ 可以直接接受 JSON-safe 对象，无需类型断言
+    // 转换为 Prisma 的 InputJsonValue 类型
     const safeMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata)
-      ? metadata as Record<string, unknown>
+      ? metadata as Prisma.InputJsonValue
       : undefined;
     
     await prisma.projectAsset.update({
