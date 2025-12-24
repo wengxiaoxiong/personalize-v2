@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { dbAvailable, getCurrentUser } from "./utils";
 import type { ActionState } from "./types";
+import type { Prisma } from "@/lib/generated/prisma";
 
 const projectSchema = z.object({
   name: z.string().min(1, "项目名称不能为空"),
@@ -40,7 +41,8 @@ export async function createProjectAction(
       data: {
         userId: user.id,
         name: parsed.data.name,
-        metadata: parsed.data.metadata || {},
+        // 通过 JSON.parse + zod 校验得到的对象，运行时已保证是 JSON-safe
+        metadata: (parsed.data.metadata ?? {}) as Prisma.InputJsonValue,
       },
     });
 
@@ -160,7 +162,7 @@ export async function updateProjectAction(
       where: { id: projectId },
       data: {
         name: parsed.data.name,
-        metadata: parsed.data.metadata,
+        metadata: parsed.data.metadata as Prisma.InputJsonValue,
       },
     });
 

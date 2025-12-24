@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 import { ChevronDownIcon, PaperclipIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
@@ -145,17 +146,18 @@ export const QueueItemAttachment = ({
   <div className={cn("mt-1 flex flex-wrap gap-2", className)} {...props} />
 );
 
-export type QueueItemImageProps = ComponentProps<"img">;
+export type QueueItemImageProps = Omit<ComponentProps<typeof Image>, "src" | "alt" | "width" | "height"> & {
+  src: string;
+  alt?: string;
+};
 
-export const QueueItemImage = ({
-  className,
-  ...props
-}: QueueItemImageProps) => (
-  <img
-    alt=""
+export const QueueItemImage = ({ className, alt = "", src, ...props }: QueueItemImageProps) => (
+  <Image
+    alt={alt}
     className={cn("h-8 w-8 rounded border object-cover", className)}
     height={32}
     width={32}
+    src={src}
     {...props}
   />
 );

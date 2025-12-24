@@ -41,8 +41,8 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
   return (
     <Conversation className="flex-1 min-h-0 rounded-lg border bg-muted/30 p-3">
       <ConversationContent>
-        {messages.map((message) => (
-          <Message key={message.id} from={message.role}>
+        {messages.map((message, messageIndex) => (
+          <Message key={`${message.id ?? "msg"}-${messageIndex}`} from={message.role}>
             <MessageContent
               className={cn(
                 "max-w-full wrap-break-word rounded-xl border px-3 py-2 shadow-sm whitespace-pre-wrap space-y-3",

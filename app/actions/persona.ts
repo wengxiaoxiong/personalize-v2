@@ -9,7 +9,6 @@ import { dbAvailable, getCurrentUser } from "./utils";
 import type {
   ActionState,
   DashboardSnapshot,
-  PersonaSummary,
   ProfessionalBackground,
   ExpressionStyle,
   AudienceRelation,
@@ -118,7 +117,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     });
 
     return {
-      personas: personas.map((p) => {
+      personas: personas.map((p: (typeof personas)[number]) => {
         const professionalBackground = p.professionalBackground as ProfessionalBackground | null;
         const expressionStyle = p.expressionStyle as ExpressionStyle;
         const audienceRelation = p.audienceRelation as AudienceRelation | null;
