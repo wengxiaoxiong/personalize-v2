@@ -6,8 +6,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { client, bucketName } from "@/lib/tos";
 import { dbAvailable, getCurrentUser } from "./utils";
-import type { ActionState } from "./types";
-import type { Prisma } from "@prisma/client";
+import type { ActionState, ProjectAssetMetadata } from "./types";
 
 const projectAssetSchema = z.object({
   projectId: z.string().uuid(),
@@ -84,7 +83,7 @@ export async function uploadProjectFileAction(
       }
     }
 
-    // 合并元数据
+    // 合并元数据（保持为标准 JSON 对象）
     const finalMetadata = {
       fileType: file.name.split(".").pop()?.toLowerCase() || "unknown",
       fileSize: file.size,
@@ -95,7 +94,7 @@ export async function uploadProjectFileAction(
       ...metadata,
     };
 
-    // 创建文档记录
+    // 创建文档记录（finalMetadata 是标准 JSON 对象，直接写入）
     await prisma.projectAsset.create({
       data: {
         projectId,
@@ -153,12 +152,18 @@ export async function createProjectAssetAction(
       return { ok: false, message: "项目不存在或无权访问" };
     }
 
+    // parsed.data.metadata 是通过 zod 校验 + JSON.parse 得到的纯 JSON 对象
+    // ProjectAssetMetadata 接口已包含索引签名，确保是 JSON-safe 对象
+    const safeMetadata: ProjectAssetMetadata = parsed.data.metadata && typeof parsed.data.metadata === 'object' && !Array.isArray(parsed.data.metadata)
+      ? parsed.data.metadata as ProjectAssetMetadata
+      : {};
+    
     await prisma.projectAsset.create({
       data: {
         projectId: parsed.data.projectId,
         name: parsed.data.name,
         tosObjectKey: parsed.data.tosObjectKey,
-        metadata: (parsed.data.metadata || {}) as Prisma.InputJsonValue,
+        metadata: safeMetadata,
       },
     });
 
@@ -250,11 +255,17 @@ export async function updateProjectAssetAction(
   }
 
   const metadataStr = formData.get("metadata") as string | null;
-  let metadata: Record<string, unknown> | undefined;
+  let metadata: ProjectAssetMetadata | undefined;
 
   if (metadataStr) {
     try {
-      metadata = JSON.parse(metadataStr);
+      const parsed = JSON.parse(metadataStr);
+      // 确保解析后的对象符合 ProjectAssetMetadata 接口
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        metadata = parsed as ProjectAssetMetadata;
+      } else {
+        return { ok: false, message: "metadata格式不正确" };
+      }
     } catch {
       return { ok: false, message: "metadata格式不正确" };
     }
@@ -286,10 +297,16 @@ export async function updateProjectAssetAction(
       return { ok: false, message: "文档不存在或无权访问" };
     }
 
+    // metadata 是通过 JSON.parse 得到的纯 JSON 对象
+    // Prisma v5+ 可以直接接受 JSON-safe 对象，无需类型断言
+    const safeMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? metadata as Record<string, unknown>
+      : undefined;
+    
     await prisma.projectAsset.update({
       where: { id: assetId },
       data: {
-        metadata: metadata as Prisma.InputJsonValue,
+        ...(safeMetadata && { metadata: safeMetadata }),
       },
     });
 

@@ -18,7 +18,14 @@ export function useToolSignal({ messages, toolName, onMatch }: ToolSignalOptions
         if (!isToolOrDynamicToolUIPart(part)) continue;
         const name = getToolOrDynamicToolName(part);
         if (name !== toolName) continue;
-        const id = part.toolCallId || `${name}-${processed.current.size}`;
+
+        const anyPart = part as any;
+        const state = anyPart.state ?? "unknown";
+
+        // 使用 toolCallId + state 作为唯一键，避免输入阶段就把后续输出阶段“吃掉”
+        const baseId = part.toolCallId || `${name}-${processed.current.size}`;
+        const id = `${baseId}-${state}`;
+
         if (processed.current.has(id)) continue;
         processed.current.add(id);
         onMatch(part as ToolUIPart);

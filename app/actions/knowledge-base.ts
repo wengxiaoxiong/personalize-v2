@@ -6,7 +6,6 @@ import { prisma } from "@/lib/db";
 import { deepseek, DEFAULT_MODEL } from "@/lib/ai";
 import { dbAvailable, getCurrentUser } from "./utils";
 import type { ProjectAssetMetadata, KnowledgeBaseMetadata } from "./types";
-import type { Prisma } from "@prisma/client";
 
 export async function generateKnowledgeBaseAction(
   projectId: string,
@@ -120,11 +119,11 @@ export async function generateKnowledgeBaseAction(
       totalTextLength,
     };
 
-    // 7. 更新项目 metadata
+    // 7. 更新项目 metadata（KnowledgeBaseMetadata 已保证是 JSON-safe 对象，直接写入）
     await prisma.project.update({
       where: { id: projectId },
       data: {
-        metadata: knowledgeBaseMetadata as Prisma.InputJsonValue,
+        metadata: knowledgeBaseMetadata,
       },
     });
 

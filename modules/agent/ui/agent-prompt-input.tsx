@@ -7,8 +7,8 @@ import {
   PromptInputFooter,
   PromptInputTextarea,
   PromptInputSubmit,
-  type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
+import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { cn } from "@/lib/utils";
 
 type AgentPromptInputProps = {

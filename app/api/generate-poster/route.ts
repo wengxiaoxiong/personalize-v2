@@ -22,7 +22,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const { imageData } = await req.json();
+    const body = await req.json() as { imageData?: string };
+    const { imageData } = body;
 
     if (!imageData) {
       return NextResponse.json(
@@ -49,14 +50,23 @@ export async function POST(req: Request) {
       contentType: "image/png",
     });
 
-    // 生成公开访问URL（根据你的TOS配置）
-    // 假设格式: https://{bucket}.{endpoint}/{objectKey}
-    const posterUrl = `https://${bucketName}.tos-cn-beijing.volces.com/${objectKey}`;
+    // 生成预签名 URL（24小时有效），用于前端直接访问私有 bucket 中的图片
+    const signedUrl = client.getPreSignedUrl({
+      bucket: bucketName,
+      key: objectKey,
+      expires: 86400, // 24 小时
+    });
+
+    console.log("[GeneratePoster] uploaded poster to TOS:", {
+      bucket: bucketName,
+      objectKey,
+      signedUrl: signedUrl.substring(0, 100) + "...", // 只打印前 100 字符
+    });
 
     return NextResponse.json({
       ok: true,
-      posterUrl,
-      objectKey,
+      posterUrl: signedUrl, // 返回预签名 URL，前端可以直接使用
+      objectKey, // 返回 path，用于存储到数据库
       message: "大字报生成成功",
     });
   } catch (error) {

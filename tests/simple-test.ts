@@ -59,7 +59,8 @@ async function testDatabase() {
       testUser = await prisma.user.create({
         data: {
           email: "test@example.com",
-          name: "Test User",
+          username: "testuser",
+          passwordHash: "test_password_hash", // 测试用的占位符哈希值
         }
       });
       console.log(`   Created test user: ${testUser.email}`);
@@ -125,9 +126,10 @@ async function testDatabase() {
         }
       }
     });
-    const metadata = updatedProject.metadata as any;
+    const metadata = updatedProject.metadata as Record<string, unknown>;
     assert(metadata.summary !== undefined, "Project metadata updated with AI summary");
-    console.log(`   Summary: ${metadata.summary}`);
+    const summary = metadata.summary;
+    console.log(`   Summary: ${typeof summary === 'string' ? summary : String(summary)}`);
     console.log();
 
     // Test 10: Delete asset (cascading)

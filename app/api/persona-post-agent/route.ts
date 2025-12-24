@@ -30,10 +30,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const payload = await req.json();
-    const messages: UIMessage[] = payload?.messages ?? [];
-    const personaId = payload?.personaId;
-    const projectId = payload?.projectId;
+    const payload = await req.json() as {
+      messages?: unknown;
+      personaId?: string;
+      projectId?: string;
+    };
+    const messages: UIMessage[] = Array.isArray(payload?.messages) ? payload.messages as UIMessage[] : [];
+    const personaId = typeof payload?.personaId === 'string' ? payload.personaId : undefined;
+    const projectId = typeof payload?.projectId === 'string' ? payload.projectId : undefined;
 
     if (!Array.isArray(messages)) {
       return NextResponse.json(
@@ -54,7 +58,8 @@ export async function POST(req: Request) {
 
       if (project && project.metadata) {
         const metadata = project.metadata as Record<string, unknown>;
-        knowledgeBase = (metadata.aiKnowledgeBase as string) || null;
+        const aiKnowledgeBase = metadata.aiKnowledgeBase;
+        knowledgeBase = typeof aiKnowledgeBase === 'string' ? aiKnowledgeBase : null;
       }
     }
 
@@ -156,50 +161,55 @@ export async function POST(req: Request) {
 /**
  * 构建系统提示
  */
+/**
+ * 构建系统提示
+ */
 function buildSystemPrompt(
-  persona: { name: string; domainTags: unknown; expressionStyle: unknown } | null,
-  knowledgeBase: string | null
+    persona: { name: string; domainTags: unknown; expressionStyle: unknown } | null,
+    knowledgeBase: string | null
 ): string {
-  let prompt = `你是一个专业的社交媒体内容创作助手。你的任务是帮助用户生成高质量的社交媒体帖子。
+    let prompt = `你是一个专业的社交媒体内容创作助手，核心任务是基于用户提供的「人设」和「项目知识库」生成高质量、风格一致的社交媒体帖子。
 
-## 你的能力：
-1. 根据用户需求生成帖子标题和内容
-2. 根据人设特点调整写作风格
-3. 结合项目知识库生成相关内容
-4. 为帖子打上合适的标签
-5. 优化内容以适配不同平台（小红书、微博等）
+## 核心原则
+- **内容根基**：所有输出必须严格基于「人设设定」与「知识库信息」，确保专业性、一致性与准确性。
+- **平台适配**：在保持内容本质不变的前提下，对格式、语气或排版进行轻量调整，以适配不同平台（主要是小红书和微博）。
+- **避免臆测**：若知识库未提供足够信息，请主动使用 readKnowledgeBase 工具查询，不要自行编造细节。
 
-## 帖子生成要求：
-- 标题要吸引人，简洁有力
-- 内容要有价值，易于阅读
-- 使用适当的emoji增加趣味性
-- 合理使用换行和段落，提高可读性
-- 根据平台特点调整风格（小红书偏向生活化、微博偏向简洁）
+## 平台风格参考（仅用于形式微调）
+- **小红书**：生活化、亲切、带点“种草”感；可适当使用第一人称、口语化表达、分段清晰、emoji 点缀（如✨💡❤️）；段落间空行增强可读性。
+- **微博**：简洁直接、信息密度高；标题可更抓眼球，适合快速阅读；emoji 使用克制但精准。
 
-## 工作流程：
-1. 理解用户需求
-2. 如果需要，使用 readKnowledgeBase 工具读取相关知识库内容
-3. 生成帖子内容
-4. 使用 savePersonaPost 工具保存帖子
-5. 如果用户需要，使用 generatePoster 工具生成大字报`;
+> ⚠️ 注意：平台风格仅影响表达形式（如语气、段落、emoji），**不改变内容事实、人设立场或知识依据**。
 
-  if (persona) {
-    prompt += `
+## 帖子生成要求
+- 标题：吸引眼球、紧扣主题，体现人设特色
+- 内容：有价值、有逻辑、易读，严格基于人设 + 知识库
+- 格式：合理换行、适当使用 emoji 提升亲和力（勿过度）
+- 标签：附上 3–5 个相关话题标签（#xxx），兼顾领域关键词与平台热词
 
-## 当前人设信息：
+## 工作流程
+1. 仔细理解用户需求
+2. 若知识库已加载但信息不足，主动调用 readKnowledgeBase 工具获取详情
+3. 结合人设（名称、领域、表达风格）与知识库内容，生成平台适配的帖子
+4. 使用 savePersonaPost 工具保存最终结果`;
+
+    if (persona) {
+        prompt += `
+
+## 当前人设信息（必须严格遵循）：
 - 名称：${persona.name}
-- 领域：${JSON.stringify(persona.domainTags)}
-- 表达风格：${JSON.stringify(persona.expressionStyle)}
+- 领域标签：${Array.isArray(persona.domainTags) ? persona.domainTags.join('、') : JSON.stringify(persona.domainTags)}
+- 表达风格：${typeof persona.expressionStyle === 'string' ? persona.expressionStyle : JSON.stringify(persona.expressionStyle)}
 
-请根据这个人设的特点生成内容，确保风格一致。`;
-  }
+请确保所有输出在语气、用词、观点上与此人设完全一致。`;
+    }
 
-  if (knowledgeBase) {
-    prompt += `
+    if (knowledgeBase) {
+        prompt += `
 
 ## 项目知识库已加载
-你可以使用 readKnowledgeBase 工具来查询相关信息，帮助生成更准确的内容。`;
-  }
+你可随时通过 readKnowledgeBase 工具检索具体内容，确保信息准确、细节丰富。所有事实性陈述必须源自知识库或明确标注为通用常识。`;
+    }
 
-  return prompt;
+    return prompt;
 }
