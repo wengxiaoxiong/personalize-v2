@@ -98,7 +98,7 @@ export function PersonaPostGenerator() {
     try {
       setLoadingHistory(true);
       const res = await getPersonaPostsAction();
-      // 只展示最新的 6 条
+      // 只展示最新的 100 条
       type PersonaPostWithPersonaLite = {
         id: string;
         title: string;
@@ -111,7 +111,7 @@ export function PersonaPostGenerator() {
         ? (res.posts as unknown as PersonaPostWithPersonaLite[])
         : [];
 
-      const posts: PersonaPostRecord[] = rawPosts.slice(0, 6).map((p) => ({
+      const posts: PersonaPostRecord[] = rawPosts.slice(0, 100).map((p) => ({
         id: p.id,
         title: p.title,
         content: p.content,
@@ -181,7 +181,7 @@ export function PersonaPostGenerator() {
           throw new Error(res.message || "复制失败");
         }
 
-        // 无感插入：将新帖子插入列表顶部（保留最多6条），避免整列表刷新
+        // 无感插入：将新帖子插入列表顶部（保留最多100条），避免整列表刷新
         setHistoryPosts((prev) => {
           const next: PersonaPostRecord = {
             id: res.postId || `temp-${Date.now()}`,
@@ -190,7 +190,7 @@ export function PersonaPostGenerator() {
             status: source.status === "published" ? "published" : "draft",
             metadata: metadataPayload,
           };
-          return [next, ...prev].slice(0, 6);
+          return [next, ...prev].slice(0, 100);
         });
         setSaveMessage("已复制为新的帖子！");
         setTimeout(() => setSaveMessage(null), 3000);

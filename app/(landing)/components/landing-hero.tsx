@@ -1,48 +1,48 @@
 import Link from "next/link";
-import { Logs } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { ArrowRight, PlayCircle } from "lucide-react";
 
 export function LandingHero() {
   return (
-    <section className="px-6 pb-20 pt-40">
-      <div className="mx-auto max-w-4xl text-center">
-        <div className="mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium">
-          <span className="h-2 w-2 rounded-full bg-primary" />
-          全平台 AI 营销内容生成
-        </div>
-        <h1 className="mt-6 text-5xl font-bold leading-tight md:text-7xl">
-          从产品文档到爆款社媒内容，
-          <br />
-          只需一键生成
-        </h1>
-        <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
-          上传 PDF 或产品图，选择「人设」，自动生成小红书、Instagram、LinkedIn 等多平台原生内容。让品牌拥有统一而多元的人格。
-        </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <Button size="lg" asChild>
-            <Link href="/register">开始生成内容</Link>
-          </Button>
-          <Button size="lg" variant="outline">
-            观看演示视频
-          </Button>
+    <section className="relative pt-32 pb-24 md:pt-48 md:pb-32 overflow-hidden">
+      <div className="container px-6 mx-auto max-w-7xl relative z-10">
+        <div className="flex flex-col items-center text-center animate-fade-in-up">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-white/50 backdrop-blur px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-black opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-black"></span>
+            </span>
+            Introducing Personalize Intelligence
+          </div>
+
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter text-balance leading-[1.1] mb-8">
+            从产品文档到爆款社媒，<br className="hidden md:block" />
+            <span className="text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-500">
+              只需一念之间。
+            </span>
+          </h1>
+
+          <p className="max-w-[640px] text-lg text-muted-foreground sm:text-xl leading-relaxed mb-10 text-balance">
+            上传资料，定义人设，剩下的交给 Personalize。
+            让品牌拥有统一而多元的人格，让每一次创作都直抵人心。
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            <Link
+              href="/register"
+              className="h-12 px-8 rounded-full bg-black text-white font-medium text-base shadow-xl shadow-black/10 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2 group"
+            >
+              开始创作
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
+            <button className="h-12 px-8 rounded-full border border-zinc-200 bg-white text-zinc-900 font-medium text-base hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2">
+              <PlayCircle className="w-4 h-4" />
+              观看演示
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="mx-auto mt-16 max-w-6xl">
-        <Card className="relative flex aspect-[16/9] items-center justify-center overflow-hidden">
-          <div className="space-y-4 text-center">
-            <Logs className="mx-auto h-14 w-14 text-muted-foreground" />
-            <p className="text-lg text-muted-foreground">Dashboard Preview Interface</p>
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Button size="lg" asChild>
-              <Link href="/dashboard">点击进入后台交互原型</Link>
-            </Button>
-          </div>
-        </Card>
-      </div>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-blue-50/50 to-transparent blur-3xl -z-10 opacity-60 pointer-events-none rounded-full"></div>
     </section>
   );
 }
-
