@@ -23,11 +23,18 @@ import {
 import { usePosterUrl } from "../hooks/use-poster-url";
 import { cn } from "@/lib/utils";
 import { updatePersonaPostAction } from "@/app/actions/persona-post";
+import { useAvatarUrl } from "@/app/(dashboard)/(personas)/hooks/use-avatar-url";
 
 export interface PersonaPostPreviewProps {
   post: PersonaPostResult | null;
   posterUrl: string | null;
   generatingPoster: boolean;
+  /** 人设信息（可选，如果帖子已保存则包含） */
+  persona?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  } | null;
   /** 复制当前帖子（不传则使用内置复制到剪贴板逻辑） */
   onCopy?: () => void;
   /** 编辑当前帖子（例如回填到输入框） */
@@ -40,6 +47,7 @@ export function PersonaPostPreview({
   post,
   posterUrl,
   generatingPoster,
+  persona,
   onCopy,
   onEdit,
   onDelete,
@@ -60,6 +68,13 @@ export function PersonaPostPreview({
 
   // 优先使用预签名 URL（从 posterPath 获取），否则使用传入的 posterUrl（刚生成时）
   const displayPosterUrl = signedPosterUrl || posterUrl;
+
+  // 处理人设头像显示
+  const isPersonaAvatarObjectKey = persona?.avatarUrl && persona.avatarUrl.startsWith("avatars/") && !persona.avatarUrl.startsWith("http");
+  const { url: signedPersonaAvatarUrl, loading: loadingPersonaAvatarUrl } = useAvatarUrl(
+    isPersonaAvatarObjectKey ? persona.avatarUrl : null
+  );
+  const displayPersonaAvatarUrl = signedPersonaAvatarUrl || (isPersonaAvatarObjectKey ? null : persona?.avatarUrl);
 
   const handleImageGenerated = useCallback(
     async (dataUrl: string) => {
@@ -171,6 +186,31 @@ export function PersonaPostPreview({
       {/* 内容区 */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4 rounded-lg border bg-card/70 shadow-sm p-4">
+          {/* 人设信息（如果有） */}
+          {persona && (
+            <>
+              <div className="flex items-center gap-3 pb-3">
+                {displayPersonaAvatarUrl ? (
+                  <img
+                    src={displayPersonaAvatarUrl}
+                    alt={persona.name}
+                    className="h-10 w-10 rounded-full border object-cover flex-shrink-0"
+                  />
+                ) : loadingPersonaAvatarUrl ? (
+                  <div className="h-10 w-10 rounded-full border bg-muted flex items-center justify-center flex-shrink-0">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="h-10 w-10 rounded-full border bg-muted flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{persona.name}</div>
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
+
           {/* 标题 */}
           <div>
             <h4 className="text-sm font-medium text-muted-foreground mb-2">
@@ -181,53 +221,7 @@ export function PersonaPostPreview({
             </h2>
           </div>
 
-          <Separator />
-
-          {/* 内容（可折叠） */}
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">
-              内容
-            </h4>
-            <div className="prose dark:prose-invert max-w-none">
-              <p className="whitespace-pre-wrap">
-                {showFullContent || post.content.length <= MAX_PREVIEW_CHARS
-                  ? post.content
-                  : `${post.content.slice(0, MAX_PREVIEW_CHARS)}...`}
-              </p>
-            </div>
-            {post.content.length > MAX_PREVIEW_CHARS && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2 px-0 text-xs text-primary"
-                onClick={() => setShowFullContent((v) => !v)}
-              >
-                {showFullContent ? "收起内容" : "查看更多"}
-              </Button>
-            )}
-          </div>
-
-          {/* 标签 */}
-          {post.tags && post.tags.length > 0 && (
-            <>
-              <Separator />
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                  标签
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {post.tags.map((tag, index) => (
-                    <Badge key={index} variant="secondary">
-                      #{tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* 大字报生成 */}
-          <Separator />
+          {/* 大字报配图 */}
           <div>
             <h4 className="text-sm font-medium text-muted-foreground mb-2">
               大字报配图
@@ -329,6 +323,51 @@ export function PersonaPostPreview({
               </div>
             )}
           </div>
+
+          <Separator />
+
+          {/* 内容（可折叠） */}
+          <div>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">
+              内容
+            </h4>
+            <div className="prose dark:prose-invert max-w-none">
+              <p className="whitespace-pre-wrap">
+                {showFullContent || post.content.length <= MAX_PREVIEW_CHARS
+                  ? post.content
+                  : `${post.content.slice(0, MAX_PREVIEW_CHARS)}...`}
+              </p>
+            </div>
+            {post.content.length > MAX_PREVIEW_CHARS && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 px-0 text-xs text-primary"
+                onClick={() => setShowFullContent((v) => !v)}
+              >
+                {showFullContent ? "收起内容" : "查看更多"}
+              </Button>
+            )}
+          </div>
+
+          {/* 标签 */}
+          {post.tags && post.tags.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                  标签
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {post.tags.map((tag, index) => (
+                    <Badge key={index} variant="secondary">
+                      #{tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

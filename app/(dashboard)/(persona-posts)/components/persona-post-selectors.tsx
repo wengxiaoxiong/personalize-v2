@@ -17,8 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { User, FolderKanban } from "lucide-react";
+import { User, FolderKanban, Loader2 } from "lucide-react";
 import type { PersonaPostStateApi } from "@/modules/persona-post/usePersonaPostState";
+import { useAvatarUrl } from "@/app/(dashboard)/(personas)/hooks/use-avatar-url";
 
 interface Persona {
   id: string;
@@ -33,6 +34,36 @@ interface Project {
 
 export interface PersonaPostSelectorsProps {
   state: PersonaPostStateApi;
+}
+
+// 头像显示组件（用于在循环中使用 hook）
+function PersonaAvatar({ avatarUrl }: { avatarUrl: string | null | undefined }) {
+  const isObjectKey = avatarUrl && avatarUrl.startsWith("avatars/") && !avatarUrl.startsWith("http");
+  const { url: signedAvatarUrl, loading: loadingAvatarUrl } = useAvatarUrl(
+    isObjectKey ? avatarUrl : null
+  );
+  
+  const displayAvatarUrl = signedAvatarUrl || (isObjectKey ? null : avatarUrl);
+
+  if (displayAvatarUrl) {
+    return (
+      <img
+        src={displayAvatarUrl}
+        alt=""
+        className="h-4 w-4 rounded-full"
+      />
+    );
+  }
+  
+  if (loadingAvatarUrl) {
+    return (
+      <div className="h-4 w-4 rounded-full border bg-muted flex items-center justify-center">
+        <Loader2 className="h-2 w-2 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  
+  return null;
 }
 
 export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
@@ -51,15 +82,19 @@ export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
       // 加载人设列表
       const personasRes = await fetch("/api/personas");
       if (personasRes.ok) {
-        const data = await personasRes.json();
-        setPersonas(data.personas || []);
+        const data = (await personasRes.json()) as {
+          personas?: Persona[];
+        };
+        setPersonas(Array.isArray(data.personas) ? data.personas : []);
       }
 
       // 加载项目列表
       const projectsRes = await fetch("/api/projects");
       if (projectsRes.ok) {
-        const data = await projectsRes.json();
-        setProjects(data.projects || []);
+        const data = (await projectsRes.json()) as {
+          projects?: Project[];
+        };
+        setProjects(Array.isArray(data.projects) ? data.projects : []);
       }
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -93,13 +128,7 @@ export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
                 {personas.map((persona) => (
                   <SelectItem key={persona.id} value={persona.id}>
                     <div className="flex items-center gap-2">
-                      {persona.avatarUrl && (
-                        <img
-                          src={persona.avatarUrl}
-                          alt={persona.name}
-                          className="h-4 w-4 rounded-full"
-                        />
-                      )}
+                      <PersonaAvatar avatarUrl={persona.avatarUrl} />
                       <span>{persona.name}</span>
                     </div>
                   </SelectItem>

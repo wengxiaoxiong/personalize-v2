@@ -72,7 +72,11 @@ export function PersonaGenerationPreview({
               生成的人设预览
             </CardTitle>
             {onSave && (
-              <Button size="sm" onClick={onSave} disabled={!canSave}>
+              <Button
+                size="sm"
+                onClick={onSave}
+                disabled={isGenerating || !canSave}
+              >
                 <Save className="mr-2 h-4 w-4" />
                 保存
               </Button>

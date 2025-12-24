@@ -12,7 +12,7 @@ import {
 import { useAgentChat } from "@/modules/agent/hooks/use-agent-chat";
 import { useFileIngestion } from "@/modules/agent/hooks/use-file-ingestion";
 import { useToolSignal } from "@/modules/agent/hooks/use-tool-signal";
-import { parsePdfToText } from "@/lib/resume-parser";
+import { extractTextFromPdf } from "@/lib/browser-text-extractor";
 import { parsePersonaMarkdown } from "@/lib/persona-parser";
 import { parseXiaohongshuJson, parseXiaohongshuData } from "@/lib/xiaohongshu-parser";
 import { QUESTIONS, buildFallbackPersona } from "@/app/(dashboard)/(personas)/components/persona-generator-helpers";
@@ -177,7 +177,21 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
   );
 
   const { ingest, uploading: pdfUploading, progress: pdfProgress } = useFileIngestion({
-    parser: parsePdfToText,
+    // 复用 projects 页面使用的 PDF 文本提取逻辑
+    parser: async (file, onProgress) => {
+      try {
+        onProgress?.("正在加载PDF...", 0.1);
+        const { text, pageCount } = await extractTextFromPdf(file);
+        if (!text || text.trim().length === 0) {
+          throw new Error("PDF 文字提取失败，未能提取到任何文字内容。请检查 PDF 文件是否清晰。");
+        }
+        onProgress?.(`已提取 ${pageCount} 页文本`, 1.0);
+        return text;
+      } catch (err) {
+        // 让 useFileIngestion 统一处理错误和状态
+        throw err instanceof Error ? err : new Error("PDF 解析失败");
+      }
+    },
     acceptTypes: ["application/pdf"],
     maxSizeMb: 10,
     onError: (err) => {
@@ -253,8 +267,11 @@ export function usePersonaOrchestrator({ personaState }: UsePersonaOrchestratorO
         }
 
         // 提取avatar并保存到state
+        // 优先级：userInfo.avatar > feeds[0].authorAvatar
         if (xhsData.userInfo?.avatar) {
           setXhsAvatar(xhsData.userInfo.avatar);
+        } else if (xhsData.feeds && xhsData.feeds.length > 0 && xhsData.feeds[0]?.authorAvatar) {
+          setXhsAvatar(xhsData.feeds[0].authorAvatar);
         }
 
         // 转换为结构化文本（自然语言格式）

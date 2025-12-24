@@ -38,6 +38,11 @@ interface PersonaPostRecord {
   content: string;
   status: "draft" | "published" | "archived";
   personaId?: string | null;
+  persona?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  } | null;
   metadata?: PersonaPostMetadata | null;
 }
 
@@ -105,7 +110,11 @@ export function PersonaPostGenerator() {
         content: string;
         status?: "draft" | "published" | "archived" | null;
         metadata: PersonaPostMetadata | null;
-        persona?: { id: string } | null;
+        persona?: {
+          id: string;
+          name: string;
+          avatarUrl: string | null;
+        } | null;
       };
       const rawPosts: PersonaPostWithPersonaLite[] = Array.isArray(res.posts)
         ? (res.posts as unknown as PersonaPostWithPersonaLite[])
@@ -117,6 +126,7 @@ export function PersonaPostGenerator() {
         content: p.content,
         status: p.status ?? "draft",
         personaId: p.persona?.id ?? null,
+        persona: p.persona ?? null,
         metadata: p.metadata,
       }));
 
@@ -413,6 +423,11 @@ export function PersonaPostGenerator() {
                 }}
                 posterUrl={null}
                 generatingPoster={false}
+                persona={post.persona ? {
+                  id: post.persona.id,
+                  name: post.persona.name,
+                  avatarUrl: post.persona.avatarUrl,
+                } : null}
                 onCopy={() => handleCopyPost({ ...post })}
                 onEdit={() => handleEditPost(post)}
                 onDelete={() => handleDeletePost(post)}

@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAvatarUrl } from "../hooks/use-avatar-url";
+import { Loader2 } from "lucide-react";
 
 export function PersonaCard({
   persona,
@@ -15,16 +17,29 @@ export function PersonaCard({
   onCopy?: () => void;
   onDelete?: () => void;
 }) {
+  // 判断 avatarUrl 是 objectKey 还是完整 URL
+  const isObjectKey = persona.avatarUrl && persona.avatarUrl.startsWith("avatars/") && !persona.avatarUrl.startsWith("http");
+  const { url: signedAvatarUrl, loading: loadingAvatarUrl } = useAvatarUrl(
+    isObjectKey ? persona.avatarUrl : null
+  );
+  
+  // 优先使用 hook 获取的 URL，否则使用原始 URL（向后兼容）
+  const displayAvatarUrl = signedAvatarUrl || (isObjectKey ? null : persona.avatarUrl);
+
   return (
     <Card className="relative">
       <CardContent className="p-5">
         <div className="mb-3 flex items-center gap-3">
-          {persona.avatarUrl ? (
+          {displayAvatarUrl ? (
             <img
-              src={persona.avatarUrl}
+              src={displayAvatarUrl}
               className="h-12 w-12 rounded-full border object-cover"
               alt={persona.name}
             />
+          ) : loadingAvatarUrl ? (
+            <div className="h-12 w-12 rounded-full border bg-muted flex items-center justify-center flex-shrink-0">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
           ) : (
             <div className="h-12 w-12 rounded-full border bg-muted flex-shrink-0" />
           )}

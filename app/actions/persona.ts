@@ -31,7 +31,14 @@ const personaSchema = z.object({
   reminders: z.string().optional(),
   bio: z.string().optional(),
   callToAction: z.string().optional(),
-  avatarUrl: z.union([z.string().url(), z.literal("")]).optional(),
+  // avatarUrl 可以是完整的 URL 或 objectKey（路径格式，以 avatars/ 开头）
+  avatarUrl: z
+    .union([
+      z.string().url(), // 完整的 URL（向后兼容）
+      z.string().regex(/^avatars\/.+/), // objectKey 格式：avatars/userId/...
+      z.literal(""),
+    ])
+    .optional(),
 });
 
 const fallbackSnapshot: DashboardSnapshot = {
@@ -114,6 +121,16 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
       where: { userId: user.id },
       orderBy: { updatedAt: "desc" },
       take: 6,
+      include: {
+        posts: {
+          select: {
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+      },
     });
 
     return {
@@ -123,13 +140,42 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
         const audienceRelation = p.audienceRelation as AudienceRelation | null;
         const professionalPreferences = p.professionalPreferences as ProfessionalPreferences | null;
 
+        // 统计使用次数（帖子数量）
+        const usage = p.posts.length;
+
+        // 计算最近使用时间
+        // 如果有帖子，使用最新帖子的创建时间；否则使用人设的更新时间
+        const lastUsedDate = p.posts.length > 0 
+          ? p.posts[0].createdAt 
+          : p.updatedAt;
+        
+        // 格式化时间显示
+        const now = new Date();
+        const diffMs = now.getTime() - lastUsedDate.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        
+        let lastUsed: string;
+        if (diffMinutes < 1) {
+          lastUsed = "刚刚";
+        } else if (diffMinutes < 60) {
+          lastUsed = `${diffMinutes}分钟前`;
+        } else if (diffHours < 24) {
+          lastUsed = `${diffHours}小时前`;
+        } else if (diffDays < 7) {
+          lastUsed = `${diffDays}天前`;
+        } else {
+          lastUsed = lastUsedDate.toLocaleDateString("zh-CN");
+        }
+
         return {
           id: p.id,
           name: p.name,
           domain: (p.domainTags as string[]) || [],
           style: expressionStyle.style || "结构化表达",
-          usage: 0,
-          lastUsed: p.updatedAt.toLocaleDateString("zh-CN"),
+          usage,
+          lastUsed,
           avatarUrl: p.avatarUrl,
           alias: professionalBackground?.alias,
           tagline: professionalBackground?.tagline,
@@ -336,21 +382,28 @@ export async function updatePersonaAction(
     return { ok: false, message: "人设ID不能为空" };
   }
 
+  // 辅助函数：将 FormData 的 null 值转换为 undefined
+  const getFormValue = (key: string): string | undefined => {
+    const value = formData.get(key);
+    return value === null ? undefined : (typeof value === "string" ? value : undefined);
+  };
+
   const parsed = personaSchema.safeParse({
     name: formData.get("name"),
     domain: formData.get("domain"),
     style: formData.get("style"),
-    background: formData.get("background"),
-    audience: formData.get("audience"),
-    voice: formData.get("voice"),
-    tone: formData.get("tone"),
-    tagline: formData.get("tagline"),
-    alias: formData.get("alias"),
-    contentPillars: formData.get("contentPillars"),
-    hooks: formData.get("hooks"),
-    reminders: formData.get("reminders"),
-    bio: formData.get("bio"),
-    callToAction: formData.get("callToAction"),
+    background: getFormValue("background"),
+    audience: getFormValue("audience"),
+    voice: getFormValue("voice"),
+    tone: getFormValue("tone"),
+    tagline: getFormValue("tagline"),
+    alias: getFormValue("alias"),
+    contentPillars: getFormValue("contentPillars"),
+    hooks: getFormValue("hooks"),
+    reminders: getFormValue("reminders"),
+    bio: getFormValue("bio"),
+    callToAction: getFormValue("callToAction"),
+    avatarUrl: getFormValue("avatarUrl"),
   });
 
   if (!parsed.success) {
@@ -408,6 +461,7 @@ export async function updatePersonaAction(
       where: { id: personaId },
       data: {
         name: parsed.data.name,
+        avatarUrl: parsed.data.avatarUrl && parsed.data.avatarUrl.trim() ? parsed.data.avatarUrl.trim() : null,
         domainTags: parsed.data.domain.split(",").map((tag) => tag.trim()),
         professionalBackground: parsed.data.background ? {
           background: parsed.data.background,
