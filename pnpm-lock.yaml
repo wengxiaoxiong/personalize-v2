@@ -18,8 +18,8 @@ dependencies:
     specifier: ^2.0.106
     version: 2.0.108(react@19.1.0)(zod@4.1.13)
   '@prisma/client':
-    specifier: ^6.13.0
-    version: 6.19.0(prisma@6.19.0)(typescript@5.9.3)
+    specifier: ^6.19.1
+    version: 6.19.1(prisma@6.19.0)(typescript@5.9.3)
   '@radix-ui/react-collapsible':
     specifier: ^1.1.12
     version: 1.1.12(@types/react-dom@19.2.3)(@types/react@19.2.7)(react-dom@19.1.0)(react@19.1.0)
@@ -102,8 +102,8 @@ dependencies:
     specifier: ^5.1.6
     version: 5.1.6
   next:
-    specifier: 15.4.8
-    version: 15.4.8(react-dom@19.1.0)(react@19.1.0)
+    specifier: 15.4.10
+    version: 15.4.10(react-dom@19.1.0)(react@19.1.0)
   pdf-parse:
     specifier: ^1.1.1
     version: 1.1.4
@@ -1098,8 +1098,8 @@ packages:
     dev: true
     optional: true
 
-  /@next/env@15.4.8:
-    resolution: {integrity: sha512-LydLa2MDI1NMrOFSkO54mTc8iIHSttj6R6dthITky9ylXV2gCGi0bHQjVCtLGRshdRPjyh2kXbxJukDtBWQZtQ==}
+  /@next/env@15.4.10:
+    resolution: {integrity: sha512-knhmoJ0Vv7VRf6pZEPSnciUG1S4bIhWx+qTYBW/AjxEtlzsiNORPk8sFDCEvqLfmKuey56UB9FL1UdHEV3uBrg==}
     dev: false
 
   /@next/eslint-plugin-next@15.4.5:
@@ -1211,8 +1211,8 @@ packages:
     engines: {node: '>=8.0.0'}
     dev: false
 
-  /@prisma/client@6.19.0(prisma@6.19.0)(typescript@5.9.3):
-    resolution: {integrity: sha512-QXFT+N/bva/QI2qoXmjBzL7D6aliPffIwP+81AdTGq0FXDoLxLkWivGMawG8iM5B9BKfxLIXxfWWAF6wbuJU6g==}
+  /@prisma/client@6.19.1(prisma@6.19.0)(typescript@5.9.3):
+    resolution: {integrity: sha512-4SXj4Oo6HyQkLUWT8Ke5R0PTAfVOKip5Roo+6+b2EDTkFg5be0FnBWiuRJc0BC0sRQIWGMLKW1XguhVfW/z3/A==}
     engines: {node: '>=18.18'}
     requiresBuild: true
     peerDependencies:
@@ -6329,8 +6329,8 @@ packages:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
     dev: true
 
-  /next@15.4.8(react-dom@19.1.0)(react@19.1.0):
-    resolution: {integrity: sha512-jwOXTz/bo0Pvlf20FSb6VXVeWRssA2vbvq9SdrOPEg9x8E1B27C2rQtvriAn600o9hH61kjrVRexEffv3JybuA==}
+  /next@15.4.10(react-dom@19.1.0)(react@19.1.0):
+    resolution: {integrity: sha512-itVlc79QjpKMFMRhP+kbGKaSG/gZM6RCvwhEbwmCNF06CdDiNaoHcbeg0PqkEa2GOcn8KJ0nnc7+yL7EjoYLHQ==}
     engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
     hasBin: true
     peerDependencies:
@@ -6350,7 +6350,7 @@ packages:
       sass:
         optional: true
     dependencies:
-      '@next/env': 15.4.8
+      '@next/env': 15.4.10
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001759
       postcss: 8.4.31
