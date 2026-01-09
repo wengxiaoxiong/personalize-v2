@@ -57,7 +57,7 @@ export async function generateKnowledgeBaseAction(
 
     // 4. 使用 AI 生成知识库
     const { text: aiResponse } = await generateText({
-      model: deepseek.chat(DEFAULT_MODEL),
+      model: deepseek(DEFAULT_MODEL),
       messages: [
         {
           role: "system",

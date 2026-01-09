@@ -1,10 +1,8 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import { createDeepSeek } from "@ai-sdk/deepseek";
 
 // DeepSeek AI 配置
-export const deepseek = createOpenAI({
-  name: "deepseek",
+export const deepseek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || "",
-  baseURL: "https://api.deepseek.com/v1",
 });
 
 // 默认模型
