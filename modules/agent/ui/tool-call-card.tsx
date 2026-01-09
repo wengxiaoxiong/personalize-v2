@@ -36,42 +36,44 @@ export function ToolCallCard({ part }: { part: ToolUIPart }) {
   const hasOutput = output !== undefined && output !== null;
 
   return (
-    <div className="space-y-2 rounded-lg border bg-background/70 p-3 shadow-sm">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-foreground">工具调用：{toolName}</span>
+    <div className="rounded-lg border bg-background/50 p-2 shadow-sm my-1">
+      <div className="flex items-center justify-between gap-2 text-[10px]">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-muted-foreground">工具：{toolName}</span>
           {part.providerExecuted && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-              已由模型执行
+            <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[9px] text-muted-foreground/70">
+              模型执行
             </span>
           )}
         </div>
         <span
-          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${statusMeta.className}`}
+          className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] ${statusMeta.className}`}
         >
           {statusMeta.label}
         </span>
       </div>
 
-      {hasInput && (
-        <div className="space-y-1 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">参数</p>
-          <pre className="whitespace-pre-wrap rounded-md bg-muted/60 p-2 text-[11px] leading-5">
-            {formatToolValue(input)}
-          </pre>
+      {(hasInput || hasOutput || errorText) && (
+        <div className="mt-1.5 space-y-1">
+          {hasInput && (
+            <div className="text-[10px]">
+              <pre className="whitespace-pre-wrap rounded-md bg-muted/40 p-1.5 text-[10px] leading-4 text-muted-foreground">
+                {formatToolValue(input)}
+              </pre>
+            </div>
+          )}
+
+          {hasOutput && (
+            <div className="text-[10px]">
+              <pre className="whitespace-pre-wrap rounded-md bg-muted/40 p-1.5 text-[10px] leading-4 text-emerald-700/80 dark:text-emerald-400/80">
+                {formatToolValue(output)}
+              </pre>
+            </div>
+          )}
+
+          {errorText && <p className="text-[10px] text-rose-600/80 p-1">错误：{errorText}</p>}
         </div>
       )}
-
-      {hasOutput && (
-        <div className="space-y-1 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">返回</p>
-          <pre className="whitespace-pre-wrap rounded-md bg-muted/60 p-2 text-[11px] leading-5">
-            {formatToolValue(output)}
-          </pre>
-        </div>
-      )}
-
-      {errorText && <p className="text-xs text-rose-600">错误：{errorText}</p>}
     </div>
   );
 }

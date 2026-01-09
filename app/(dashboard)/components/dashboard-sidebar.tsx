@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Home, PenLine, Sparkles, ChevronLeft, ChevronRight, LogOut, Settings, FolderKanban } from "lucide-react";
+import { ArrowLeft, Home, PenLine, Sparkles, ChevronLeft, ChevronRight, LogOut, Settings, FolderKanban, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/components/providers/dashboard-provider";
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
+  DialogTitle,
 } from "@/components/ui/dialog";
 
 function MaskIcon() {
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/dashboard", label: "工作台", icon: Home },
   { href: "/personas", label: "人设库", icon: MaskIcon },
   { href: "/persona-posts", label: "帖子生成", icon: PenLine },
+  { href: "/persona-posts/history", label: "历史帖子", icon: History },
   { href: "/projects", label: "项目管理", icon: FolderKanban },
 ];
 
@@ -113,6 +115,7 @@ export function DashboardSidebar() {
             </div>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
+            <DialogTitle className="sr-only">用户菜单</DialogTitle>
             <div className="grid gap-4 py-4">
               <div className="flex flex-col items-center gap-2">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl">

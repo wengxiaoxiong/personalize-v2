@@ -22,6 +22,7 @@ type AgentPromptInputProps = {
   textareaClassName?: string;
   className?: string;
   footerContent?: React.ReactNode;
+  headerContent?: React.ReactNode;
 };
 
 export function AgentPromptInput({
@@ -35,9 +36,15 @@ export function AgentPromptInput({
   textareaClassName,
   className,
   footerContent,
+  headerContent,
 }: AgentPromptInputProps) {
   return (
     <PromptInput onSubmit={onSubmit} className={cn("rounded-lg border bg-card/80", className)}>
+      {headerContent && (
+        <div className="px-3 py-2 border-b bg-muted/30">
+          {headerContent}
+        </div>
+      )}
       <PromptInputBody>
         <PromptInputTextarea
           value={value}

@@ -34,6 +34,7 @@ interface Project {
 
 export interface PersonaPostSelectorsProps {
   state: PersonaPostStateApi;
+  compact?: boolean;
 }
 
 // 头像显示组件（用于在循环中使用 hook）
@@ -66,7 +67,7 @@ function PersonaAvatar({ avatarUrl }: { avatarUrl: string | null | undefined }) 
   return null;
 }
 
-export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
+export function PersonaPostSelectors({ state, compact = false }: PersonaPostSelectorsProps) {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +103,79 @@ export function PersonaPostSelectors({ state }: PersonaPostSelectorsProps) {
       setLoading(false);
     }
   };
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        {/* 人设选择 */}
+        <div className="flex items-center gap-2">
+          <Select
+            value={state.state.selectedPersonaId || ""}
+            onValueChange={state.setSelectedPersonaId}
+            disabled={loading}
+          >
+            <SelectTrigger className="h-9 w-[180px] bg-background/50">
+              <div className="flex items-center gap-2 truncate">
+                <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <SelectValue placeholder="选择人设..." />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {personas.map((persona) => (
+                <SelectItem key={persona.id} value={persona.id}>
+                  <div className="flex items-center gap-2">
+                    <PersonaAvatar avatarUrl={persona.avatarUrl} />
+                    <span>{persona.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 项目选择（知识库） */}
+        <div className="flex items-center gap-2">
+          <Select
+            value={state.state.selectedProjectId || "none"}
+            onValueChange={(value) => state.setSelectedProjectId(value === "none" ? null : value)}
+            disabled={loading}
+          >
+            <SelectTrigger className="h-9 w-[180px] bg-background/50">
+              <div className="flex items-center gap-2 truncate">
+                <FolderKanban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <SelectValue placeholder="项目知识库..." />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">不使用知识库</SelectItem>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 平台选择 */}
+        <div className="flex items-center gap-2">
+          <Select
+            value={state.state.platform}
+            onValueChange={(value: "xiaohongshu" | "weibo" | "other") => state.setPlatform(value)}
+          >
+            <SelectTrigger className="h-9 w-[120px] bg-background/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="xiaohongshu">小红书</SelectItem>
+              <SelectItem value="weibo">微博</SelectItem>
+              <SelectItem value="other">其他</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

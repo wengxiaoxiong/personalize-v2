@@ -19,11 +19,20 @@ import {
   Trash2,
   Pencil,
   Download,
+  ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { usePosterUrl } from "../hooks/use-poster-url";
 import { cn } from "@/lib/utils";
 import { updatePersonaPostAction } from "@/app/actions/persona-post";
 import { useAvatarUrl } from "@/app/(dashboard)/(personas)/hooks/use-avatar-url";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export interface PersonaPostPreviewProps {
   post: PersonaPostResult | null;
@@ -41,6 +50,8 @@ export interface PersonaPostPreviewProps {
   onEdit?: () => void;
   /** 删除当前帖子（例如清空预览） */
   onDelete?: () => void;
+  /** 紧凑模式，点击弹出对话框显示详情 */
+  compactView?: boolean;
 }
 
 export function PersonaPostPreview({
@@ -51,9 +62,11 @@ export function PersonaPostPreview({
   onCopy,
   onEdit,
   onDelete,
+  compactView = false,
 }: PersonaPostPreviewProps) {
   const [showCanvas, setShowCanvas] = React.useState(false);
   const [showFullContent, setShowFullContent] = React.useState(false);
+  const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [aiStyle, setAiStyle] = React.useState<PosterStyle | null>(null);
   const [loadingAiStyle, setLoadingAiStyle] = React.useState(false);
 
@@ -129,29 +142,26 @@ export function PersonaPostPreview({
     );
   }
 
-  return (
+  const PreviewContent = () => (
     <div className="h-full flex flex-col">
       {/* 顶部操作栏 */}
       <div className="flex items-center justify-between p-4 border-b">
-        <h3 className="font-semibold">帖子预览</h3>
+        <h3 className="font-semibold text-lg">{post.title || "帖子预览"}</h3>
         <div className="flex items-center gap-1">
           {/* 复制 */}
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => {
+            title="复制"
+            onClick={(e) => {
+              e.stopPropagation();
               if (onCopy) {
                 onCopy();
                 return;
               }
-              if (!post) return;
               const text = `${post.title}\n\n${post.content}`;
-              if (navigator.clipboard?.writeText) {
-                navigator.clipboard.writeText(text).catch((err) => {
-                  console.error("Failed to copy post:", err);
-                });
-              }
+              navigator.clipboard.writeText(text);
             }}
           >
             <Copy className="h-4 w-4" />
@@ -162,7 +172,9 @@ export function PersonaPostPreview({
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => {
+            title="编辑"
+            onClick={(e) => {
+              e.stopPropagation();
               if (onEdit) onEdit();
             }}
           >
@@ -174,7 +186,9 @@ export function PersonaPostPreview({
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-destructive"
-            onClick={() => {
+            title="删除"
+            onClick={(e) => {
+              e.stopPropagation();
               if (onDelete) onDelete();
             }}
           >
@@ -184,52 +198,43 @@ export function PersonaPostPreview({
       </div>
 
       {/* 内容区 */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-4 rounded-lg border bg-card/70 shadow-sm p-4">
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        <div className="space-y-4 rounded-xl border bg-card shadow-sm p-6">
           {/* 人设信息（如果有） */}
           {persona && (
-            <>
-              <div className="flex items-center gap-3 pb-3">
-                {displayPersonaAvatarUrl ? (
-                  <img
-                    src={displayPersonaAvatarUrl}
-                    alt={persona.name}
-                    className="h-10 w-10 rounded-full border object-cover flex-shrink-0"
-                  />
-                ) : loadingPersonaAvatarUrl ? (
-                  <div className="h-10 w-10 rounded-full border bg-muted flex items-center justify-center flex-shrink-0">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <div className="h-10 w-10 rounded-full border bg-muted flex-shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{persona.name}</div>
+            <div className="flex items-center gap-3 pb-2">
+              {displayPersonaAvatarUrl ? (
+                <img
+                  src={displayPersonaAvatarUrl}
+                  alt={persona.name}
+                  className="h-10 w-10 rounded-full border object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-full border bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground text-xs font-bold">
+                  {persona.name.charAt(0)}
                 </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-base truncate">{persona.name}</div>
+                <div className="text-xs text-muted-foreground">基于人设风格生成</div>
               </div>
-              <Separator />
-            </>
+            </div>
           )}
 
+          {persona && <Separator className="opacity-50" />}
+
           {/* 标题 */}
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">
-              标题
-            </h4>
-            <h2 className="text-xl font-bold line-clamp-2 break-words">
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold break-words leading-tight">
               {post.title}
             </h2>
           </div>
 
           {/* 大字报配图 */}
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">
-              大字报配图
-            </h4>
+          <div className="space-y-2">
             {!showCanvas && !displayPosterUrl && (
               <Button
                 onClick={async () => {
-                  // 先调用 AI 生成样式方案
                   setLoadingAiStyle(true);
                   try {
                     const response = await fetch("/api/optimize-poster", {
@@ -245,19 +250,17 @@ export function PersonaPostPreview({
                       const result = await response.json();
                       if (result.ok && result.style) {
                         setAiStyle(result.style);
-                        console.log("[PersonaPost] AI style generated:", result.style);
                       }
                     }
                   } catch (error) {
                     console.error("[PersonaPost] Failed to get AI style:", error);
-                    // AI 失败时使用随机样式（aiStyle 为 null）
                   } finally {
                     setLoadingAiStyle(false);
                     setShowCanvas(true);
                   }
                 }}
                 variant="outline"
-                className="w-full"
+                className="w-full h-12 rounded-xl border-dashed"
                 disabled={generatingPoster || loadingAiStyle}
               >
                 {generatingPoster || loadingAiStyle ? (
@@ -268,14 +271,14 @@ export function PersonaPostPreview({
                 ) : (
                   <>
                     <ImageIcon className="h-4 w-4 mr-2" />
-                    生成大字报
+                    生成大字报配图
                   </>
                 )}
               </Button>
             )}
 
             {showCanvas && (
-              <div className="mt-4">
+              <div className="mt-2 rounded-xl overflow-hidden border">
                 <PosterCanvas
                   title={post.title}
                   content={post.content}
@@ -286,9 +289,9 @@ export function PersonaPostPreview({
             )}
 
             {displayPosterUrl && !showCanvas && (
-              <div className="mt-4 relative">
+              <div className="mt-2 relative group/poster rounded-xl overflow-hidden border">
                 {loadingSignedUrl ? (
-                  <div className="flex items-center justify-center h-48 border rounded-lg">
+                  <div className="flex items-center justify-center h-48 border bg-muted/30">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
@@ -296,82 +299,110 @@ export function PersonaPostPreview({
                     <img
                       src={displayPosterUrl}
                       alt="大字报"
-                      className="w-full border rounded-lg"
-                      onError={(e) => {
-                        console.error(
-                          "[PersonaPost] failed to load poster image in preview:",
-                          {
-                            posterUrl: displayPosterUrl,
-                            error: e,
-                          }
-                        );
-                      }}
+                      className="w-full"
                     />
-                    <Button
-                      asChild
-                      size="sm"
-                      variant="secondary"
-                      className="absolute top-3 right-3 shadow-sm"
-                    >
-                      <a href={displayPosterUrl} download>
-                        <Download className="h-4 w-4 mr-2" />
-                        下载图片
-                      </a>
-                    </Button>
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center justify-center">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-full px-4"
+                      >
+                        <a href={displayPosterUrl} download>
+                          <Download className="h-4 w-4 mr-2" />
+                          下载图片
+                        </a>
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
             )}
           </div>
 
-          <Separator />
+          <Separator className="opacity-50" />
 
-          {/* 内容（可折叠） */}
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">
-              内容
-            </h4>
-            <div className="prose dark:prose-invert max-w-none">
+          {/* 内容 */}
+          <div className="space-y-2">
+            <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed text-foreground/90">
               <p className="whitespace-pre-wrap">
-                {showFullContent || post.content.length <= MAX_PREVIEW_CHARS
-                  ? post.content
-                  : `${post.content.slice(0, MAX_PREVIEW_CHARS)}...`}
+                {post.content}
               </p>
             </div>
-            {post.content.length > MAX_PREVIEW_CHARS && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2 px-0 text-xs text-primary"
-                onClick={() => setShowFullContent((v) => !v)}
-              >
-                {showFullContent ? "收起内容" : "查看更多"}
-              </Button>
-            )}
           </div>
 
           {/* 标签 */}
           {post.tags && post.tags.length > 0 && (
-            <>
-              <Separator />
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                  标签
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {post.tags.map((tag, index) => (
-                    <Badge key={index} variant="secondary">
-                      #{tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </>
+            <div className="flex flex-wrap gap-1.5 pt-2">
+              {post.tags.map((tag, index) => (
+                <Badge key={index} variant="secondary" className="bg-primary/5 hover:bg-primary/10 text-primary border-none px-2 py-0.5 font-normal">
+                  #{tag}
+                </Badge>
+              ))}
+            </div>
           )}
         </div>
       </div>
-
-      {/* 底部已去掉“保存帖子”按钮，改为在卡片顶部提供操作按钮 */}
     </div>
   );
+
+  if (compactView) {
+    return (
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogTrigger asChild>
+          <div className="p-5 cursor-pointer hover:bg-muted/50 transition-all h-full flex flex-col gap-3 group/card">
+            <div className="flex items-center justify-between">
+              <Badge variant="secondary" className="font-medium text-[10px] h-5 bg-primary/10 text-primary border-none">
+                {post.metadata?.platform === "xiaohongshu" ? "小红书" : post.metadata?.platform === "weibo" ? "微博" : "其他"}
+              </Badge>
+              <div className="text-[10px] text-muted-foreground">
+                {new Date().toLocaleDateString()}
+              </div>
+            </div>
+
+            {/* 人设头像和名称 */}
+            {persona && (
+              <div className="flex items-center gap-2">
+                {displayPersonaAvatarUrl ? (
+                  <img
+                    src={displayPersonaAvatarUrl}
+                    alt={persona.name}
+                    className="h-6 w-6 rounded-full border object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="h-6 w-6 rounded-full border bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground text-[8px] font-bold">
+                    {persona.name.charAt(0)}
+                  </div>
+                )}
+                <span className="text-xs font-medium text-muted-foreground truncate">{persona.name}</span>
+              </div>
+            )}
+
+            <h3 className="font-bold text-sm line-clamp-2 leading-snug group-hover/card:text-primary transition-colors">
+              {post.title}
+            </h3>
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed flex-1">
+              {post.content}
+            </p>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex flex-wrap gap-1">
+                {post.tags && post.tags.slice(0, 2).map((tag, i) => (
+                  <span key={i} className="text-[10px] text-primary/70">#{tag}</span>
+                ))}
+              </div>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                <ChevronRightIcon className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        </DialogTrigger>
+        <DialogContent className="max-w-2xl h-[85vh] p-0 overflow-hidden flex flex-col gap-0 rounded-2xl shadow-2xl border-none">
+          <DialogTitle className="sr-only">帖子详情</DialogTitle>
+          <PreviewContent />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return <PreviewContent />;
 }

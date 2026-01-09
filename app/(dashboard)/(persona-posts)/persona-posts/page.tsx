@@ -11,11 +11,8 @@ import { PersonaPostGenerator } from "../components/persona-post-generator";
 
 export default function PersonaPostsPage() {
   return (
-    <>
-      <DashboardHeader />
-      <div className="space-y-6 mt-6">
-        <PersonaPostGenerator />
-      </div>
-    </>
+    <div className="flex flex-col h-[calc(100vh-80px)] lg:h-[calc(100vh-100px)] overflow-hidden">
+      <PersonaPostGenerator />
+    </div>
   );
 }

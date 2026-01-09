@@ -183,6 +183,123 @@ export async function POST(req: Request) {
           },
         }),
 
+        // 获取人设历史帖子列表工具
+        getPersonaPostHistory: tool({
+          description: "获取某个人设历史生成过的帖子列表（标题、ID、创建时间等），用于参考和避免生成重复内容。",
+          inputSchema: z.object({
+            limit: z.number().optional().default(10).describe("返回最多多少条历史记录，默认10条"),
+          }),
+          execute: async ({ limit }) => {
+            if (!personaId) {
+              return {
+                success: false,
+                message: "未绑定人设，无法获取历史帖子",
+              };
+            }
+
+            const posts = await prisma.personaPost.findMany({
+              where: {
+                personaId: personaId,
+                persona: {
+                  userId: user.id,
+                },
+              },
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                createdAt: true,
+                metadata: true,
+              },
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: limit,
+            });
+
+            if (posts.length === 0) {
+              return {
+                success: true,
+                message: "该人设暂无历史帖子",
+                posts: [],
+              };
+            }
+
+            // 格式化返回数据，包含标题列表用于快速参考
+            const postList = posts.map((post) => {
+              const metadata = post.metadata as { tags?: string[]; platform?: string } | null;
+              return {
+                id: post.id,
+                title: post.title,
+                status: post.status,
+                createdAt: post.createdAt.toISOString(),
+                tags: metadata?.tags || [],
+                platform: metadata?.platform || null,
+              };
+            });
+
+            return {
+              success: true,
+              message: `已获取该人设的 ${posts.length} 条历史帖子`,
+              posts: postList,
+              // 提供标题列表供快速参考
+              titles: posts.map((p) => p.title),
+            };
+          },
+        }),
+
+        // 获取单个帖子详情工具
+        getPostById: tool({
+          description: "根据帖子ID获取帖子的完整内容（标题、正文、标签等），用于查看历史帖子的详细信息。",
+          inputSchema: z.object({
+            postId: z.string().describe("帖子ID"),
+          }),
+          execute: async ({ postId }) => {
+            // 验证帖子是否属于当前用户
+            const post = await prisma.personaPost.findFirst({
+              where: {
+                id: postId,
+                persona: {
+                  userId: user.id,
+                },
+              },
+              select: {
+                id: true,
+                title: true,
+                content: true,
+                status: true,
+                metadata: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            });
+
+            if (!post) {
+              return {
+                success: false,
+                message: "帖子不存在或无权访问",
+              };
+            }
+
+            const metadata = post.metadata as { tags?: string[]; platform?: string; images?: string[] } | null;
+
+            return {
+              success: true,
+              post: {
+                id: post.id,
+                title: post.title,
+                content: post.content,
+                status: post.status,
+                tags: metadata?.tags || [],
+                platform: metadata?.platform || null,
+                images: metadata?.images || [],
+                createdAt: post.createdAt.toISOString(),
+                updatedAt: post.updatedAt.toISOString(),
+              },
+            };
+          },
+        }),
+
         // 生成大字报工具（占位符）
         generatePoster: tool({
           description: "生成3:4比例的大字报图片",
@@ -258,12 +375,19 @@ function buildSystemPrompt(
 ## 工作流程（重要！严格按照此顺序执行）
 1. **仔细理解用户需求**：分析用户想要生成什么主题的帖子
 
-2. **优先查询本地知识库**（如果有知识库）：
+2. **查看历史帖子**（避免重复，保持一致性）：
+   - **在生成内容之前，建议先调用 getPersonaPostHistory 工具**查看该人设的历史帖子
+   - 查看历史帖子的标题列表，了解已发布的内容主题
+   - 如果发现与用户需求高度相似的历史帖子，可以用 getPostById 工具查看详情
+   - **避免生成重复或高度相似的内容**，确保新帖子有独特价值
+   - 参考历史帖子的风格和结构，保持内容输出的连贯性
+
+3. **优先查询本地知识库**（如果有知识库）：
    - **必须首先调用 readKnowledgeBase 工具**，使用相关关键词查询本地知识库
    - 例如：用户要写"产品功能介绍"，查询"产品"、"功能"等关键词
    - 评估知识库返回的内容是否足够生成完整帖子
 
-3. **判断是否需要补充搜索**：
+4. **判断是否需要补充搜索**：
    - **如果本地知识库信息充足**：直接基于知识库内容生成帖子，无需搜索
    - **如果本地知识库信息不足或没有知识库**：**然后调用 searchInformation 工具**搜索相关信息
    - 搜索策略：
@@ -271,20 +395,31 @@ function buildSystemPrompt(
      * 例如：人设是"科技博主"，用户要写"AI工具推荐"，搜索"最新AI工具推荐 2024"、"AI工具测评"等
      * 可以多次搜索不同角度的关键词，确保信息全面
 
-4. **生成内容**（关键步骤）：
+5. **生成内容**（关键步骤）：
    - **首先回顾人设信息**：在生成前，必须回顾并确认人设的所有特征（名称、领域、Voice、Tone、Style、内容支柱等）
    - **严格遵循人设**：生成的内容必须在语气、用词、观点、风格上完全符合人设设定
    - **结合信息源**：将知识库/搜索结果与人设特征融合，确保内容既准确又符合人设风格
    - **平台适配**：在保持人设风格不变的前提下，对格式进行平台适配
 
-5. **保存结果**：使用 savePersonaPost 工具保存最终结果
+6. **保存结果**：使用 savePersonaPost 工具保存最终结果
 
 **重要原则**：始终先尝试使用本地知识库（readKnowledgeBase），只有在信息不足时才使用搜索工具（searchInformation）。这样可以确保优先使用项目相关的准确信息。
 
 ## 搜索工具使用指南
 - **何时使用**：没有知识库、知识库信息不足、需要最新资讯、需要行业趋势时
 - **搜索关键词构建**：结合人设领域 + 用户需求 + 时效性（如"2024最新"、"趋势"等）
-- **搜索后处理**：基于搜索结果，结合你的专业知识，生成符合人设风格的高质量内容`;
+- **搜索后处理**：基于搜索结果，结合你的专业知识，生成符合人设风格的高质量内容
+
+## 历史帖子工具使用指南
+- **getPersonaPostHistory**：获取该人设的历史帖子列表（标题、ID、创建时间等）
+  - **何时使用**：在生成新帖子之前，查看已发布的内容，避免重复
+  - **返回内容**：帖子ID、标题、状态、标签、平台、创建时间等
+  - **建议**：生成前先查看历史，确保新内容有独特价值
+
+- **getPostById**：根据帖子ID获取完整内容
+  - **何时使用**：发现历史帖子与当前需求相似，需要查看详情时
+  - **返回内容**：完整的标题、正文、标签、图片等
+  - **建议**：用于深度参考，避免生成高度相似的内容`;
 
     if (persona) {
         // 解析人设的各个字段
