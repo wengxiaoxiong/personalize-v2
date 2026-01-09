@@ -25,10 +25,19 @@ export type DashboardSnapshot = {
   personas: PersonaSummary[];
 };
 
-export type ActionState = {
+/**
+ * 基础 Action 返回状态
+ */
+export type ActionState<T = any> = {
   ok: boolean;
   message: string;
+  data?: T;
 };
+
+/**
+ * ActionResult 是 ActionState 的别名，更明确地表示带返回数据的操作结果
+ */
+export type ActionResult<T = any> = ActionState<T>;
 
 // JSON 字段的类型定义
 export type JsonValue =
@@ -82,4 +91,3 @@ export interface KnowledgeBaseMetadata {
   documentCount?: number;
   totalTextLength?: number;
 }
-

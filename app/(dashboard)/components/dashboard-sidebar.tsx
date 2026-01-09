@@ -36,7 +36,6 @@ const navItems = [
   { href: "/dashboard", label: "工作台", icon: Home },
   { href: "/personas", label: "人设库", icon: MaskIcon },
   { href: "/persona-posts", label: "帖子生成", icon: PenLine },
-  { href: "/persona-posts/history", label: "历史帖子", icon: History },
   { href: "/projects", label: "项目管理", icon: FolderKanban },
 ];
 
@@ -77,7 +76,7 @@ export function DashboardSidebar() {
         >
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+            const isActive = pathname === item.href 
             return (
               <Link
                 key={item.href}

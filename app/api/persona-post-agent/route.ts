@@ -84,6 +84,9 @@ export async function POST(req: Request) {
       });
     }
 
+    // 将当前绑定的 personaId 传递给工具
+    const currentPersonaId = persona?.id || null;
+
     // 构建系统提示
     const systemPrompt = buildSystemPrompt(persona, knowledgeBase);
 
@@ -95,18 +98,60 @@ export async function POST(req: Request) {
       tools: {
         // 保存帖子工具
         savePersonaPost: tool({
-          description: "保存生成的帖子到数据库",
+          description: `保存生成的帖子到数据库。
+${currentPersonaId ? `当前已绑定人设ID: ${currentPersonaId}（会自动使用）` : '注意：当前未绑定人设，必须先使用 searchPersonas 工具搜索可用的人设，然后指定 personaId 参数'}。
+如果用户明确要求保存到特定人设下，也可以指定 personaId 参数覆盖当前绑定的人设。`,
           inputSchema: z.object({
+            personaId: z.string().optional().describe(`人设ID。${currentPersonaId ? `默认使用当前绑定的人设 (${currentPersonaId})，如果需要保存到其他人设下，请指定此参数` : '当前未绑定人设，必须指定此参数'}。可以使用 searchPersonas 工具查找可用的人设ID。`),
             title: z.string().describe("帖子标题"),
             content: z.string().describe("帖子内容"),
             tags: z.array(z.string()).optional().describe("帖子标签"),
             platform: z.string().optional().describe("目标平台"),
           }),
-          execute: async ({ title, content, tags, platform }) => {
+          execute: async ({ personaId: toolPersonaId, title, content, tags, platform }) => {
+            // 确定最终使用的 personaId：优先使用工具参数，其次使用当前绑定的
+            const finalPersonaId = toolPersonaId || currentPersonaId;
+
+            if (!finalPersonaId) {
+              return {
+                success: false,
+                message: "未指定人设ID，且当前未绑定人设。请先使用 searchPersonas 工具查找可用的人设，然后在保存时指定 personaId。",
+                error: "MISSING_PERSONA_ID",
+              };
+            }
+
+            // 验证人设是否属于当前用户
+            const personaExists = await prisma.persona.findFirst({
+              where: {
+                id: finalPersonaId,
+                userId: user.id,
+              },
+              select: {
+                id: true,
+                name: true,
+              },
+            });
+
+            if (!personaExists) {
+              return {
+                success: false,
+                message: `人设不存在或无权访问 (ID: ${finalPersonaId})。请使用 searchPersonas 工具查找可用的人设。`,
+                error: "INVALID_PERSONA_ID",
+              };
+            }
+
+            // 返回保存信息（实际保存由客户端处理）
             return {
               success: true,
-              message: "帖子已准备好保存",
-              data: { title, content, tags, platform },
+              message: `帖子已准备保存到人设"${personaExists.name}"下`,
+              data: {
+                personaId: finalPersonaId,
+                personaName: personaExists.name,
+                title,
+                content,
+                tags,
+                platform,
+              },
             };
           },
         }),
@@ -315,6 +360,186 @@ export async function POST(req: Request) {
             };
           },
         }),
+
+        // 搜索知识库/项目列表工具
+        searchProjects: tool({
+          description: "搜索用户的知识库/项目列表，用于查找可用的知识库资源。可以根据项目名称搜索，或获取所有项目列表。",
+          inputSchema: z.object({
+            query: z.string().optional().describe("搜索关键词，用于过滤项目名称。如果为空，则返回所有项目"),
+            limit: z.number().optional().default(10).describe("返回最多多少条记录，默认10条"),
+          }),
+          execute: async ({ query, limit }) => {
+            const projects = await prisma.project.findMany({
+              where: {
+                userId: user.id,
+                ...(query ? {
+                  name: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                } : {}),
+              },
+              select: {
+                id: true,
+                name: true,
+                metadata: true,
+                createdAt: true,
+                updatedAt: true,
+                _count: {
+                  select: {
+                    assets: true,
+                  },
+                },
+              },
+              orderBy: {
+                updatedAt: 'desc',
+              },
+              take: limit,
+            });
+
+            if (projects.length === 0) {
+              return {
+                success: true,
+                message: query ? `未找到包含"${query}"的项目` : "暂无项目",
+                projects: [],
+              };
+            }
+
+            // 格式化返回数据
+            const projectList = projects.map((project) => {
+              const metadata = project.metadata as Record<string, unknown> | null;
+              const hasKnowledgeBase = metadata && typeof metadata.aiKnowledgeBase === 'string' && metadata.aiKnowledgeBase.length > 0;
+
+              return {
+                id: project.id,
+                name: project.name,
+                hasKnowledgeBase,
+                assetCount: project._count.assets,
+                createdAt: project.createdAt.toISOString(),
+                updatedAt: project.updatedAt.toISOString(),
+              };
+            });
+
+            return {
+              success: true,
+              message: `已找到 ${projects.length} 个项目`,
+              projects: projectList,
+              // 提供项目名称列表供快速参考
+              projectNames: projects.map((p) => p.name),
+            };
+          },
+        }),
+
+        // 搜索人设列表工具
+        searchPersonas: tool({
+          description: "搜索用户的人设列表，用于查找可用的人设资源。可以根据人设名称或领域标签搜索，或获取所有人设列表。",
+          inputSchema: z.object({
+            query: z.string().optional().describe("搜索关键词，用于过滤人设名称或领域标签。如果为空，则返回所有人设"),
+            limit: z.number().optional().default(10).describe("返回最多多少条记录，默认10条"),
+          }),
+          execute: async ({ query, limit }) => {
+            // 先获取所有人设(如果 limit 很小,可以适当放宽一点以便过滤)
+            const personas = await prisma.persona.findMany({
+              where: {
+                userId: user.id,
+              },
+              select: {
+                id: true,
+                name: true,
+                avatarUrl: true,
+                domainTags: true,
+                professionalBackground: true,
+                expressionStyle: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+              orderBy: {
+                updatedAt: 'desc',
+              },
+              take: query ? limit * 2 : limit, // 如果有查询,多取一些以便过滤
+            });
+
+            // 如果有查询关键词,手动过滤人设名称和领域标签
+            let filteredPersonas = personas;
+            if (query) {
+              const queryLower = query.toLowerCase();
+              filteredPersonas = personas
+                .filter((persona) => {
+                  const domainTags = Array.isArray(persona.domainTags)
+                    ? persona.domainTags as string[]
+                    : [];
+                  return (
+                    persona.name.toLowerCase().includes(queryLower) ||
+                    domainTags.some((tag) => tag.toLowerCase().includes(queryLower))
+                  );
+                })
+                .slice(0, limit); // 过滤后再截取到 limit
+            }
+
+            // 获取每个 persona 的帖子数量
+            const personaIds = filteredPersonas.map((p) => p.id);
+            const postCounts = await prisma.personaPost.groupBy({
+              by: ['personaId'],
+              where: {
+                personaId: { in: personaIds },
+              },
+              _count: {
+                personaId: true,
+              },
+            });
+
+            const postCountMap = Object.fromEntries(
+              postCounts.map((item) => [item.personaId, item._count.personaId])
+            );
+
+            if (filteredPersonas.length === 0) {
+              return {
+                success: true,
+                message: query ? `未找到包含"${query}"的人设` : "暂无人设",
+                personas: [],
+              };
+            }
+
+            // 格式化返回数据
+            const personaList = filteredPersonas.map((persona) => {
+              const domainTags = Array.isArray(persona.domainTags) ? persona.domainTags as string[] : [];
+              const professionalBackground = persona.professionalBackground as {
+                background?: string;
+                tagline?: string;
+                alias?: string;
+                bio?: string;
+              } | null || {};
+              const expressionStyle = persona.expressionStyle as {
+                style?: string;
+                voice?: string;
+                tone?: string;
+              } | null || {};
+
+              return {
+                id: persona.id,
+                name: persona.name,
+                avatarUrl: persona.avatarUrl,
+                domainTags,
+                tagline: professionalBackground.tagline || null,
+                bio: professionalBackground.bio || null,
+                style: expressionStyle.style || null,
+                voice: expressionStyle.voice || null,
+                tone: expressionStyle.tone || null,
+                postCount: postCountMap[persona.id] || 0,
+                createdAt: persona.createdAt.toISOString(),
+                updatedAt: persona.updatedAt.toISOString(),
+              };
+            });
+
+            return {
+              success: true,
+              message: `已找到 ${filteredPersonas.length} 个人设`,
+              personas: personaList,
+              // 提供人设名称列表供快速参考
+              personaNames: filteredPersonas.map((p) => p.name),
+            };
+          },
+        }),
       },
       stopWhen: stepCountIs(6),
     });
@@ -373,7 +598,12 @@ function buildSystemPrompt(
 - 标签：附上 3–5 个相关话题标签（#xxx），兼顾领域关键词与平台热词
 
 ## 工作流程（重要！严格按照此顺序执行）
-1. **仔细理解用户需求**：分析用户想要生成什么主题的帖子
+1. **检查人设绑定状态**：
+   - 如果当前已绑定人设（见上方人设信息）：直接使用该人设生成内容
+   - 如果当前**未绑定人设**（见上方警告）：
+     * **必须先使用 searchPersonas 工具**查询用户可用的人设列表
+     * 向用户展示可用的人设，请用户选择要使用的人设
+     * **不能跳过人设选择直接生成内容**
 
 2. **查看历史帖子**（避免重复，保持一致性）：
    - **在生成内容之前，建议先调用 getPersonaPostHistory 工具**查看该人设的历史帖子
@@ -401,7 +631,10 @@ function buildSystemPrompt(
    - **结合信息源**：将知识库/搜索结果与人设特征融合，确保内容既准确又符合人设风格
    - **平台适配**：在保持人设风格不变的前提下，对格式进行平台适配
 
-6. **保存结果**：使用 savePersonaPost 工具保存最终结果
+6. **保存结果**（注意 personaId 参数）：
+   - 使用 savePersonaPost 工具保存最终结果
+   - **如果当前已绑定人设**：直接调用 savePersonaPost，不需要指定 personaId 参数（会自动使用当前绑定的人设）
+   - **如果当前未绑定人设**：必须在调用 savePersonaPost 时指定 personaId 参数（使用用户在步骤1中选择的人设ID）
 
 **重要原则**：始终先尝试使用本地知识库（readKnowledgeBase），只有在信息不足时才使用搜索工具（searchInformation）。这样可以确保优先使用项目相关的准确信息。
 
@@ -419,7 +652,20 @@ function buildSystemPrompt(
 - **getPostById**：根据帖子ID获取完整内容
   - **何时使用**：发现历史帖子与当前需求相似，需要查看详情时
   - **返回内容**：完整的标题、正文、标签、图片等
-  - **建议**：用于深度参考，避免生成高度相似的内容`;
+  - **建议**：用于深度参考，避免生成高度相似的内容
+
+## 资源搜索工具使用指南
+- **searchProjects**：搜索用户的知识库/项目列表
+  - **何时使用**：需要查找可用的知识库资源，或用户想要切换到其他项目的知识库时
+  - **搜索方式**：可以根据项目名称关键词搜索，或不提供查询参数获取所有项目
+  - **返回内容**：项目ID、名称、是否有知识库、资源数量、更新时间等
+  - **建议**：当当前知识库信息不足时，可以建议用户搜索其他项目是否有相关知识库
+
+- **searchPersonas**：搜索用户的人设列表
+  - **何时使用**：需要查找可用的人设资源，或用户想要查看或切换人设时
+  - **搜索方式**：可以根据人设名称或领域标签搜索，或不提供查询参数获取所有人设
+  - **返回内容**：人设ID、名称、领域标签、风格特征、帖子数量等
+  - **建议**：当用户想了解或切换人设时使用，帮助用户选择合适的人设生成内容`;
 
     if (persona) {
         // 解析人设的各个字段
@@ -499,10 +745,17 @@ ${professionalPreferences.callToAction ? `**行动号召（CTA）**：${professi
         prompt += `
 
 ## ⚠️ 警告：未绑定人设
-当前没有绑定人设信息。虽然可以生成帖子，但建议：
-1. 优先绑定一个合适的人设，以确保内容风格一致
-2. 如果没有绑定人设，生成的内容可能缺乏统一的风格和定位
-3. 如果用户明确要求生成帖子，可以基于通用风格生成，但应提醒用户绑定人设以获得更好的效果`;
+当前没有绑定人设信息。**必须执行以下步骤**：
+
+1. **使用 searchPersonas 工具**：先搜索用户可用的人设列表
+2. **询问用户选择人设**：向用户展示可用的人设列表，请用户选择要使用的人设
+3. **使用选定的人设生成内容**：基于用户选择的人设生成帖子
+4. **保存时指定 personaId**：在调用 savePersonaPost 工具时，必须在 personaId 参数中指定用户选择的人设ID
+
+**重要**：
+- 如果用户没有指定人设，不能直接生成和保存帖子
+- 必须先使用 searchPersonas 查询可用的人设
+- 保存帖子时必须指定 personaId 参数（从 searchPersonas 返回的人设ID中选择）`;
     }
 
     if (knowledgeBase) {

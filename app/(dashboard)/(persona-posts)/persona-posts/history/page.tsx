@@ -43,14 +43,14 @@ export default function PersonaPostsHistoryPage() {
       setLoading(true);
       const res = await getPersonaPostsAction();
       if (res.posts) {
-        setPosts(res.posts as any);
+        setPosts(res.posts as PersonaPostRecord[]);
       }
-    } catch (err) {
-      console.error("Failed to load posts:", err);
+    } catch (error) {
+      console.error("Failed to load posts:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getPersonaPostsAction]);
 
   useEffect(() => {
     loadPosts();
