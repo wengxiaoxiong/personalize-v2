@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { 
-  ArrowRight, PlayCircle, Sparkles, 
-  HeartHandshake, BrainCircuit, Swords, Lightbulb, 
-  ScanText, Users2, Share2, Check, 
-  Twitter, Github, Mail, Menu, X, ArrowUpRight
+import {
+  ArrowRight, PlayCircle, Sparkles,
+  HeartHandshake, BrainCircuit, Swords, Lightbulb,
+  ScanText, Users2, Share2, Check,
+  Twitter, Github, Mail, Menu, X, ArrowUpRight, LogIn
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useSession } from "@/lib/use-session";
 
 // --- Data ---
 
@@ -121,6 +122,8 @@ const plans = [
 const Nav = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, loading } = useSession();
+  const isLoggedIn = !!user;
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -150,10 +153,22 @@ const Nav = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-4">
-          <Link href="/login" className="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors">登录</Link>
-          <Link href="/register" className="inline-flex h-10 items-center justify-center rounded-full bg-zinc-900 px-6 text-sm font-semibold text-white transition-all hover:bg-zinc-800 hover:shadow-lg active:scale-95">
-            免费试用
-          </Link>
+          {!loading && isLoggedIn ? (
+            <>
+              <span className="text-sm text-zinc-500">欢迎, {user?.username}</span>
+              <Link href="/dashboard" className="inline-flex h-10 items-center gap-2 rounded-full bg-amber-500 px-6 text-sm font-semibold text-white transition-all hover:bg-amber-600 hover:shadow-lg active:scale-95">
+                <LogIn className="h-4 w-4" />
+                进入系统
+              </Link>
+            </>
+          ) : !loading ? (
+            <>
+              <Link href="/login" className="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors">登录</Link>
+              <Link href="/register" className="inline-flex h-10 items-center justify-center rounded-full bg-zinc-900 px-6 text-sm font-semibold text-white transition-all hover:bg-zinc-800 hover:shadow-lg active:scale-95">
+                免费试用
+              </Link>
+            </>
+          ) : null}
         </div>
 
         <button className="md:hidden p-2 text-zinc-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -163,7 +178,7 @@ const Nav = () => {
 
       <AnimatePresence>
         {mobileMenuOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -174,8 +189,20 @@ const Nav = () => {
                 <a key={item} href={`#${["philosophy", "features", "pricing"][i]}`} onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium text-zinc-600">{item}</a>
               ))}
               <div className="pt-4 border-t border-zinc-100 flex flex-col gap-4">
-                <Link href="/login" className="text-lg font-medium text-zinc-600">登录</Link>
-                <Link href="/register" className="flex h-12 items-center justify-center rounded-xl bg-zinc-900 text-white font-bold">免费试用</Link>
+                {!loading && isLoggedIn ? (
+                  <>
+                    <span className="text-lg font-medium text-zinc-600">欢迎, {user?.username}</span>
+                    <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex h-12 items-center justify-center rounded-xl bg-amber-500 text-white font-bold gap-2">
+                      <LogIn className="h-5 w-5" />
+                      进入系统
+                    </Link>
+                  </>
+                ) : !loading ? (
+                  <>
+                    <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium text-zinc-600">登录</Link>
+                    <Link href="/register" onClick={() => setMobileMenuOpen(false)} className="flex h-12 items-center justify-center rounded-xl bg-zinc-900 text-white font-bold">免费试用</Link>
+                  </>
+                ) : null}
               </div>
             </div>
           </motion.div>
