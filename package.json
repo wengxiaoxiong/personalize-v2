@@ -33,6 +33,7 @@
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@types/ali-oss": "^6.16.13",
     "@types/pdf-parse": "^1.1.5",
+    "@vercel/analytics": "^1.6.1",
     "@vercel/blob": "^1.1.1",
     "@volcengine/tos-sdk": "^2.7.5",
     "@xyflow/react": "^12.10.0",
