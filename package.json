@@ -42,6 +42,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "embla-carousel-react": "^8.6.0",
+    "html2canvas-pro": "^1.6.4",
     "lucide-react": "^0.536.0",
     "motion": "^12.23.25",
     "nanoid": "^5.1.6",
