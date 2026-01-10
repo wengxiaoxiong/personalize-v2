@@ -7,4 +7,5 @@ export interface AgentContext {
   projectId?: string;
   knowledgeBase?: string | null;
   currentPersonaId?: string | null;
+  lastPostId?: string;
 }

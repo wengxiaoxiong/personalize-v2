@@ -1,4 +1,5 @@
 import { getToolName, type ToolUIPart } from "ai";
+import { PosterToolRenderer } from "./poster-tool-renderer";
 
 type ToolState = ToolUIPart["state"];
 
@@ -65,9 +66,13 @@ export function ToolCallCard({ part }: { part: ToolUIPart }) {
 
           {hasOutput && (
             <div className="text-[10px]">
-              <pre className="whitespace-pre-wrap rounded-md bg-muted/40 p-1.5 text-[10px] leading-4 text-emerald-700/80 dark:text-emerald-400/80">
-                {formatToolValue(output)}
-              </pre>
+              {toolName === "generatePoster" ? (
+                <PosterToolRenderer part={part} />
+              ) : (
+                <pre className="whitespace-pre-wrap rounded-md bg-muted/40 p-1.5 text-[10px] leading-4 text-emerald-700/80 dark:text-emerald-400/80">
+                  {formatToolValue(output)}
+                </pre>
+              )}
             </div>
           )}
 

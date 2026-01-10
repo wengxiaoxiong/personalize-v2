@@ -10,6 +10,7 @@ import {
   createSearchProjectsTool,
 } from "./knowledge";
 import { createGeneratePostTool, createGeneratePosterTool } from "./post";
+import { createSearchPexelsImageTool } from "./image";
 
 export function getPersonaPostTools(context: AgentContext) {
   return {
@@ -18,8 +19,9 @@ export function getPersonaPostTools(context: AgentContext) {
     searchInformation: createSearchInformationTool(),
     getPersonaPostHistory: createGetPersonaPostHistoryTool(context),
     getPostById: createGetPostByIdTool(context),
-    generatePoster: createGeneratePosterTool(),
+    generatePoster: createGeneratePosterTool(context),
     searchProjects: createSearchProjectsTool(context),
     searchPersonas: createSearchPersonasTool(context),
+    searchPexelsImage: createSearchPexelsImageTool(),
   };
 }

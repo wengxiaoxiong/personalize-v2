@@ -21,10 +21,10 @@ const nextConfig: NextConfig = {
   // 允许使用 worker
   experimental: {
     webpackBuildWorker: true,
-  },
-  // 移除 Server Actions body 大小限制
-  serverActions: {
-    bodySizeLimit: false,
+    serverActions: {
+      // 设置 bodySizeLimit 限制，例如 10MB
+      bodySizeLimit: '10mb',
+    },
   },
   // 确保 Prisma 二进制文件被正确复制到部署环境
   outputFileTracingIncludes: {

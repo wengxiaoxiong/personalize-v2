@@ -100,7 +100,7 @@ export async function POST(req: Request) {
     // 构建系统提示
     const systemPrompt = buildSystemPrompt(persona, knowledgeBase);
 
-    // 获取工具
+    // 构建工具
     const tools = getPersonaPostTools(context);
 
     // 流式生成响应
@@ -109,6 +109,19 @@ export async function POST(req: Request) {
       system: systemPrompt,
       messages: convertToModelMessages(messages),
       tools,
+      onStepFinish: async (event) => {
+        // 如果调用了 generatePost，记录返回的 postId 到 context
+        if (event.toolResults) {
+          for (const res of event.toolResults) {
+            if (res.toolName === 'generatePost') {
+              const result = (res as { result?: { success?: boolean; postId?: string } }).result;
+              if (result?.postId) {
+                context.lastPostId = result.postId;
+              }
+            }
+          }
+        }
+      },
       stopWhen: stepCountIs(6),
     });
 
