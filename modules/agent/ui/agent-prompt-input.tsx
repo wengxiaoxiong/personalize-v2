@@ -41,7 +41,7 @@ export function AgentPromptInput({
   return (
     <PromptInput onSubmit={onSubmit} className={cn("rounded-lg border bg-card/80", className)}>
       {headerContent && (
-        <div className="px-3 py-2 border-b bg-muted/30">
+        <div className="px-3 py-2 border-b bg-transparent">
           {headerContent}
         </div>
       )}

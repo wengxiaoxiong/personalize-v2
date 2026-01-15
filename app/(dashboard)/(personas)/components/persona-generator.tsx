@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ToolUIPart } from "ai";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,11 +26,13 @@ import { ToolCallCard } from "@/modules/agent/ui/tool-call-card";
 import { usePersonaState } from "@/modules/persona/usePersonaState";
 import { usePersonaOrchestrator } from "@/modules/persona/usePersonaOrchestrator";
 import { createPersonaSelectionRenderer } from "./persona-selection-renderer";
+import { PersonaEntryCards } from "./persona-entry-cards";
 
 export function PersonaGenerator() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [xhsDialogOpen, setXhsDialogOpen] = useState(false);
   const [xhsImporting, setXhsImporting] = useState(false);
+  const [showAICreateInput, setShowAICreateInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const personaState = usePersonaState();
   const pane = usePaneState(false);
@@ -99,6 +101,29 @@ export function PersonaGenerator() {
     [handleXhsJsonImport]
   );
 
+  const handleDocumentUpload = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleXhsImportClick = useCallback(() => {
+    setXhsDialogOpen(true);
+  }, []);
+
+  const handleAICreate = useCallback(() => {
+    setShowAICreateInput(true);
+  }, []);
+
+  const handleBackToCards = useCallback(() => {
+    setShowAICreateInput(false);
+    // 清空输入内容，回到初始状态
+    setInputValue("");
+  }, [setInputValue]);
+
+  const handleResetWorkflow = useCallback(() => {
+    resetWorkflow();
+    setShowAICreateInput(false);
+  }, [resetWorkflow]);
+
   const pdfUploadProps = {
     fileInputRef,
     onFileSelect: onFileChange,
@@ -132,7 +157,7 @@ export function PersonaGenerator() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={resetWorkflow}
+                onClick={handleResetWorkflow}
                 disabled={chat.status === "streaming" || personaFlow.loading}
                 className="gap-1"
               >
@@ -214,23 +239,58 @@ export function PersonaGenerator() {
           </AgentSidecar>
         </div>
       ) : (
-        <div className="flex items-center justify-center min-h-[calc(100vh-220px)]">
-          <div className="w-full max-w-2xl mx-auto space-y-6 px-4">
-            <h2 className="text-2xl md:text-3xl font-semibold text-center text-foreground">开始构建新的人设</h2>
-            <div className="space-y-4">
-              <PdfUploadControl {...pdfUploadProps} />
-              <AgentPromptInput
-                value={persona.inputValue}
-                onChange={setInputValue}
-                onSubmit={handleSubmit}
-                status={chat.status}
-                placeholder="在这里输入你的需求，描述你想要构建的人设..."
-                disabled={pdf.uploading}
-                submitDisabled={pdf.uploading || !persona.inputValue.trim()}
-                textareaClassName="min-h-[200px] md:min-h-[240px] text-base"
-              />
+        <div className="flex items-center justify-center min-h-[calc(100vh-220px)] py-8">
+          {/* 隐藏的文件输入，用于卡片点击时触发文件选择器 */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={onFileChange}
+            className="hidden"
+            disabled={pdf.uploading}
+            id="pdf-upload-initial"
+          />
+          {!showAICreateInput ? (
+            <PersonaEntryCards
+              onDocumentUpload={handleDocumentUpload}
+              onXhsImport={handleXhsImportClick}
+              onAICreate={handleAICreate}
+              disabled={pdf.uploading || xhsImporting}
+            />
+          ) : (
+            <div className="w-full max-w-2xl mx-auto space-y-6 px-4 animate-in fade-in-50 slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBackToCards}
+                  className="gap-2 transition-all duration-200 hover:bg-muted/80 hover:translate-x-[-2px]"
+                >
+                  <ArrowLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-1" />
+                  返回
+                </Button>
+              </div>
+              <div className="text-center space-y-2 animate-in slide-in-from-bottom-4 fade-in-50 duration-500 delay-100">
+                <h2 className="text-2xl md:text-3xl font-semibold text-foreground">自定义需求描述</h2>
+                <p className="text-muted-foreground text-sm">
+                  告诉 AI 你想要什么，我们将协助你从零构建人设
+                </p>
+              </div>
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 fade-in-50 duration-500 delay-200">
+                <AgentPromptInput
+                  value={persona.inputValue}
+                  onChange={setInputValue}
+                  onSubmit={handleSubmit}
+                  status={chat.status}
+                  placeholder="在这里输入你的需求，描述你想要构建的人设...&#10;&#10;例如：&#10;- 我想要一个科技博主人设，擅长讲解AI和编程技术&#10;- 风格要专业但易懂，适合初学者&#10;- 语气要轻松友好，不要过于严肃"
+                  disabled={pdf.uploading}
+                  submitDisabled={pdf.uploading || !persona.inputValue.trim()}
+                  textareaClassName="min-h-[200px] md:min-h-[240px] text-base transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

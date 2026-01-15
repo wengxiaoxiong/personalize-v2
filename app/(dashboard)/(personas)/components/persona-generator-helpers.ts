@@ -9,29 +9,45 @@ export const QUESTIONS = [
   "有没有平台特定要求或互动需求？比如「小红书/抖音适配，需要带动现场互动」",
 ];
 
-const selectionBlockRegex = /<选择题>([\s\S]*?)<\/选择题>/g;
+// 使用函数内创建正则表达式，避免全局状态问题
+const createSelectionBlockRegex = () => /<选择题>([\s\S]*?)<\/选择题>/g;
+const createOptionRegex = () => /<选项>([\s\S]*?)<\/选项>/g;
 
 export const extractSelectionQuestions = (
   text: string
 ): { cleanText: string; questions: SelectionQuestion[] } => {
-  selectionBlockRegex.lastIndex = 0;
+  if (!text || typeof text !== "string") {
+    return { cleanText: text || "", questions: [] };
+  }
+
   const questions: SelectionQuestion[] = [];
+  // 每次调用都创建新的正则表达式实例，避免全局状态问题
+  const selectionBlockRegex = createSelectionBlockRegex();
   const matches = Array.from(text.matchAll(selectionBlockRegex));
 
   for (const match of matches) {
     const block = match[1] ?? "";
+    if (!block.trim()) continue;
+
     const titleMatch = block.match(/<题目>([\s\S]*?)<\/题目>/);
-    const optionMatches = Array.from(block.matchAll(/<选项>([\s\S]*?)<\/选项>/g))
+    if (!titleMatch) continue;
+
+    const optionRegex = createOptionRegex();
+    const optionMatches = Array.from(block.matchAll(optionRegex))
       .map((m) => (m[1] ?? "").trim())
       .filter((opt): opt is string => opt.length > 0);
 
-    const title = titleMatch?.[1]?.trim() ?? "";
+    const title = titleMatch[1]?.trim() ?? "";
     if (title && optionMatches.length > 0) {
       questions.push({ title, options: optionMatches });
     }
   }
 
-  const cleanText = matches.length > 0 ? text.replace(selectionBlockRegex, "").trim() : text;
+  // 移除所有选择题块，保留其他文本
+  const cleanText = matches.length > 0 
+    ? text.replace(createSelectionBlockRegex(), "").trim() 
+    : text.trim();
+  
   return { cleanText, questions };
 };
 

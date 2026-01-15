@@ -10,12 +10,14 @@ export function PersonaCard({
   persona,
   onEdit,
   onCopy,
-  onDelete
+  onDelete,
+  isPreset = false,
 }: {
   persona: PersonaSummary;
   onEdit?: () => void;
   onCopy?: () => void;
   onDelete?: () => void;
+  isPreset?: boolean;
 }) {
   // 判断 avatarUrl 是 objectKey 还是完整 URL
   const isObjectKey = persona.avatarUrl && persona.avatarUrl.startsWith("avatars/") && !persona.avatarUrl.startsWith("http");
@@ -27,7 +29,7 @@ export function PersonaCard({
   const displayAvatarUrl = signedAvatarUrl || (isObjectKey ? null : persona.avatarUrl);
 
   return (
-    <Card className="relative">
+    <Card className="relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group">
       <CardContent className="p-5">
         <div className="mb-3 flex items-center gap-3">
           {displayAvatarUrl ? (
@@ -95,21 +97,35 @@ export function PersonaCard({
             )}
           </div>
         )}
-        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span>使用次数：{persona.usage}</span>
-          <span>最近：{persona.lastUsed}</span>
-        </div>
+        {isPreset && (
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+              预设模板
+            </Badge>
+            <span className="text-[11px] text-muted-foreground/80">
+              作为灵感参考使用
+            </span>
+          </div>
+        )}
+        {!isPreset && (
+          <>
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>使用次数：{persona.usage}</span>
+              <span>最近：{persona.lastUsed}</span>
+            </div>
             <div className="mt-3 flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            编辑
-          </Button>
-          <Button variant="outline" size="sm" onClick={onCopy}>
-            复制
-          </Button>
-          <Button variant="outline" size="sm" onClick={onDelete}>
-            删除
-          </Button>
-        </div>
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                编辑
+              </Button>
+              <Button variant="outline" size="sm" onClick={onCopy}>
+                复制
+              </Button>
+              <Button variant="outline" size="sm" onClick={onDelete}>
+                删除
+              </Button>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

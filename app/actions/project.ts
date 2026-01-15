@@ -86,6 +86,56 @@ export async function getProjects() {
   }
 }
 
+/**
+ * 获取简化的项目列表（用于选择器）
+ * 使用 Server Action 而非 API Route，符合项目规范
+ */
+export async function getProjectsAction(): Promise<ActionState<{
+  id: string;
+  name: string;
+  metadata: unknown;
+  createdAt: Date;
+}[]>> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return {
+        ok: false,
+        message: "请先登录",
+        data: [],
+      };
+    }
+
+    const projects = await prisma.project.findMany({
+      where: {
+        userId: user.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+        name: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      ok: true,
+      message: "获取成功",
+      data: projects,
+    };
+  } catch (error) {
+    console.error("Get projects failed:", error);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "获取项目列表失败",
+      data: [],
+    };
+  }
+}
+
 export async function getProjectById(projectId: string) {
   if (!(await dbAvailable())) {
     return null;

@@ -17,6 +17,7 @@ import { prisma } from "@/lib/db";
 import { getPersonaPostTools } from "./tools";
 import { buildSystemPrompt } from "./prompts";
 import { AgentContext } from "./types";
+import { isPresetPersonaId, getPresetPersonaById, convertPresetPersonaToDbFormat } from "@/lib/preset-personas";
 
 export const maxDuration = 60;
 
@@ -67,22 +68,32 @@ export async function POST(req: Request) {
     // 如果有personaId，获取完整的人设信息
     let persona = null;
     if (personaId) {
-      persona = await prisma.persona.findFirst({
-        where: {
-          id: personaId,
-          userId: user.id,
-        },
-        select: {
-          id: true,
-          name: true,
-          avatarUrl: true,
-          domainTags: true,
-          professionalBackground: true,
-          expressionStyle: true,
-          audienceRelation: true,
-          professionalPreferences: true,
-        },
-      });
+      // 检查是否是预设人设
+      if (isPresetPersonaId(personaId)) {
+        const presetPersona = getPresetPersonaById(personaId);
+        if (presetPersona) {
+          const index = parseInt(personaId.replace("preset-", ""), 10);
+          persona = convertPresetPersonaToDbFormat(presetPersona, index);
+        }
+      } else {
+        // 从数据库获取用户创建的人设
+        persona = await prisma.persona.findFirst({
+          where: {
+            id: personaId,
+            userId: user.id,
+          },
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            domainTags: true,
+            professionalBackground: true,
+            expressionStyle: true,
+            audienceRelation: true,
+            professionalPreferences: true,
+          },
+        });
+      }
     }
 
     // 将当前绑定的 personaId 传递给工具

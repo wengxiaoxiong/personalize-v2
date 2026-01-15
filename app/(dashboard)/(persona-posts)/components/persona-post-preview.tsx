@@ -145,14 +145,14 @@ export function PersonaPostPreview({
   const PreviewContent = () => (
     <div className="h-full flex flex-col">
       {/* 顶部操作栏 */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <h3 className="font-semibold text-lg">{post.title || "帖子预览"}</h3>
+      <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+        <h3 className="font-semibold text-lg transition-colors duration-200">{post.title || "帖子预览"}</h3>
         <div className="flex items-center gap-1">
           {/* 复制 */}
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 transition-all duration-200 hover:bg-primary/10 hover:text-primary hover:scale-110"
             title="复制"
             onClick={(e) => {
               e.stopPropagation();
@@ -171,7 +171,7 @@ export function PersonaPostPreview({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 transition-all duration-200 hover:bg-primary/10 hover:text-primary hover:scale-110"
             title="编辑"
             onClick={(e) => {
               e.stopPropagation();
@@ -185,7 +185,7 @@ export function PersonaPostPreview({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-destructive"
+            className="h-8 w-8 text-destructive transition-all duration-200 hover:bg-destructive/10 hover:scale-110"
             title="删除"
             onClick={(e) => {
               e.stopPropagation();
@@ -197,9 +197,9 @@ export function PersonaPostPreview({
         </div>
       </div>
 
-      {/* 内容区 */}
+          {/* 内容区 */}
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        <div className="space-y-4 rounded-xl border bg-card shadow-sm p-6">
+        <div className="space-y-4 rounded-xl border bg-card shadow-sm p-6 transition-all duration-300 hover:shadow-md">
           {/* 人设信息（如果有） */}
           {persona && (
             <div className="flex items-center gap-3 pb-2">
@@ -260,7 +260,7 @@ export function PersonaPostPreview({
                   }
                 }}
                 variant="outline"
-                className="w-full h-12 rounded-xl border-dashed"
+                className="w-full h-12 rounded-xl border-dashed transition-all duration-300 hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm hover:-translate-y-0.5"
                 disabled={generatingPoster || loadingAiStyle}
               >
                 {generatingPoster || loadingAiStyle ? (
@@ -270,7 +270,7 @@ export function PersonaPostPreview({
                   </>
                 ) : (
                   <>
-                    <ImageIcon className="h-4 w-4 mr-2" />
+                    <ImageIcon className="h-4 w-4 mr-2 transition-transform duration-200 group-hover:scale-110" />
                     生成大字报配图
                   </>
                 )}

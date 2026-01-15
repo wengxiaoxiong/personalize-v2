@@ -275,17 +275,17 @@ export function PersonaPostGenerator() {
         {/* 错误和提示消息 (绝对定位在顶部或固定在聊天流上方) */}
         <div className="flex-none space-y-2 mb-2">
           {saveMessage && (
-            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg animate-in fade-in slide-in-from-top-1">
-              <p className="text-sm text-green-800 dark:text-green-200 text-center">
-                {saveMessage}
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg animate-in fade-in slide-in-from-top-1 duration-500 shadow-sm">
+              <p className="text-sm text-green-800 dark:text-green-200 text-center font-medium">
+                ✓ {saveMessage}
               </p>
             </div>
           )}
 
           {ui.error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-in fade-in slide-in-from-top-1">
-              <p className="text-sm text-red-800 dark:text-red-200 text-center">
-                {ui.error}
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-in fade-in slide-in-from-top-1 duration-500 shadow-sm">
+              <p className="text-sm text-red-800 dark:text-red-200 text-center font-medium">
+                ✕ {ui.error}
               </p>
             </div>
           )}
@@ -293,24 +293,26 @@ export function PersonaPostGenerator() {
 
         {/* 对话区 - 占据剩余空间 */}
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-            <AgentConversation
-              messages={chat.messages}
-              status={chat.status}
-              toolRenderer={toolRenderer}
-            />
+          <div className="flex-1 overflow-y-auto scroll-smooth">
+            <div className="animate-in fade-in-50 duration-500">
+              <AgentConversation
+                messages={chat.messages}
+                status={chat.status}
+                toolRenderer={toolRenderer}
+              />
+            </div>
 
             {/* 下方：当前生成的帖子预览（作为对话流的一部分） */}
             {state.finalPost && (
-              <div className="mt-12 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mt-12 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="h-px flex-1 bg-border" />
-                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-border transition-all duration-500" />
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-3 py-1 rounded-full bg-muted/50 backdrop-blur-sm">
                     当前生成结果
                   </span>
-                  <div className="h-px flex-1 bg-border" />
+                  <div className="h-px flex-1 bg-gradient-to-l from-transparent via-border to-border transition-all duration-500" />
                 </div>
-                <div className="border rounded-2xl bg-card overflow-hidden shadow-lg transition-all hover:shadow-xl">
+                <div className="border rounded-2xl bg-card overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group/preview">
                   <PersonaPostPreview
                     post={state.finalPost}
                     posterUrl={state.posterUrl}
@@ -325,30 +327,35 @@ export function PersonaPostGenerator() {
           </div>
 
           {/* 输入区 - 固定在底部 */}
-          <div className="flex-none pt-4 pb-6 bg-background">
-            <AgentPromptInput
-              value={state.inputValue}
-              onChange={setInputValue}
-              onSubmit={handleSubmit}
-              status={chat.status}
-              placeholder="描述你想生成的帖子内容，比如：帮我写一篇关于AI技术的小红书帖子..."
-              headerContent={
-                <PersonaPostSelectors state={personaPostState} compact />
-              }
-              footerContent={
-                state.started && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="secondary" className="text-[10px] h-4">
-                      提示
-                    </Badge>
-                    <span>
-                      说&quot;生成帖子&quot;或&quot;帮我写&quot;来创建内容，
-                      {state.selectedProjectId && "已关联知识库"}
-                    </span>
-                  </div>
-                )
-              }
-            />
+          <div className="flex-none pt-4 pb-6 bg-background/95 backdrop-blur-sm border-t border-border/50">
+            <div className="animate-in fade-in-50 slide-in-from-bottom-2 duration-500">
+              <AgentPromptInput
+                value={state.inputValue}
+                onChange={setInputValue}
+                onSubmit={handleSubmit}
+                status={chat.status}
+                placeholder="描述你想生成的帖子内容，比如：帮我写一篇关于AI技术的小红书帖子..."
+                submitDisabled={!state.inputValue.trim()}
+                headerContent={
+                  <PersonaPostSelectors state={personaPostState} compact />
+                }
+                footerContent={
+                  state.started && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-in fade-in-50 duration-300">
+                      <Badge variant="secondary" className="text-[10px] h-4 transition-colors duration-200">
+                        提示
+                      </Badge>
+                      <span>
+                        说&quot;生成帖子&quot;或&quot;帮我写&quot;来创建内容
+                        {state.selectedProjectId && (
+                          <span className="ml-1 text-primary font-medium">· 已关联知识库</span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                }
+              />
+            </div>
           </div>
         </div>
       </div>

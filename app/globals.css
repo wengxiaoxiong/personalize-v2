@@ -181,11 +181,18 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
+  }
+  /* 移除选中时的蓝色阴影 */
+  *:focus {
+    outline: none;
+  }
+  *:focus-visible {
+    @apply outline-none ring-0;
   }
 }
 

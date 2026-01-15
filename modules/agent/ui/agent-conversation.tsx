@@ -42,7 +42,7 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
 
   return (
     <Conversation className="flex-1 min-h-0 bg-transparent p-0 border-none shadow-none">
-      <ConversationContent className="space-y-6 pb-4">
+      <ConversationContent className="pb-4">
         {messages.map((message, messageIndex) => {
           const isUser = message.role === "user";
           const isAssistant = message.role === "assistant";
@@ -51,15 +51,19 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
             <div
               key={`${message.id ?? "msg"}-${messageIndex}`}
               className={cn(
-                "flex w-full gap-3",
-                isUser ? "flex-row-reverse" : "flex-row"
+                "group flex w-full gap-4 px-4 py-3",
+                isUser ? "flex-row-reverse" : "flex-row",
+                "focus-within:outline-none"
               )}
+              tabIndex={-1}
             >
               {/* 头像 */}
               <div
                 className={cn(
-                  "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full border shadow-sm",
-                  isUser ? "bg-background" : "bg-primary text-primary-foreground"
+                  "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full transition-all duration-200",
+                  isUser 
+                    ? "bg-muted/80 border border-border/40" 
+                    : "bg-gradient-to-br from-primary/90 to-primary text-primary-foreground"
                 )}
               >
                 {isUser ? (
@@ -72,21 +76,23 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
               {/* 消息内容 */}
               <div
                 className={cn(
-                  "flex flex-col gap-1 max-w-[90%]",
+                  "flex flex-col gap-1.5 flex-1 min-w-0",
                   isUser ? "items-end" : "items-start"
                 )}
               >
                 <div
                   className={cn(
-                    "rounded-2xl px-4 py-2.5 shadow-sm text-sm leading-relaxed",
+                    "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                    "max-w-[85%] sm:max-w-[80%]",
                     isUser
-                      ? "bg-primary text-primary-foreground rounded-tr-none"
-                      : "bg-muted/50 text-foreground rounded-tl-none border"
+                      ? "bg-primary text-primary-foreground rounded-tr-sm"
+                      : "bg-muted/50 text-foreground rounded-tl-sm border border-border/40"
                   )}
                 >
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     {message.parts?.map((part, idx) => {
                       if (!isAgentPart(part)) return null;
+
                       const custom = tryRenderers(part, message, idx);
                       if (custom) return <React.Fragment key={`${message.id}-part-${idx}`}>{custom}</React.Fragment>;
 
@@ -96,8 +102,9 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
                           <MessageResponse
                             key={`${message.id}-text-${idx}`}
                             className={cn(
-                              "max-w-none whitespace-pre-wrap wrap-break-word prose-p:my-0 prose-pre:my-1",
-                              isAssistant ? "prose prose-sm dark:prose-invert" : ""
+                              "max-w-none whitespace-pre-wrap break-words prose-p:my-0 prose-pre:my-1 prose-headings:my-2 prose-headings:font-semibold",
+                              isAssistant ? "prose prose-sm dark:prose-invert max-w-none" : "",
+                              isUser ? "text-primary-foreground" : ""
                             )}
                           >
                             {part.text}
@@ -107,7 +114,7 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
 
                       if (isToolUIPart(part)) {
                         return (
-                          <div key={`${message.id}-tool-${idx}`} className="w-full">
+                          <div key={`${message.id}-tool-${idx}`} className="w-full mt-1">
                             {toolRenderer?.(part, message, idx) ?? null}
                           </div>
                         );
@@ -122,11 +129,11 @@ export function AgentConversation({ messages, status, renderers = [], toolRender
           );
         })}
         {status === "submitted" && (
-          <div className="flex w-full gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-primary text-primary-foreground shadow-sm">
+          <div className="flex w-full gap-4 px-4 py-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/90 to-primary text-primary-foreground">
               <Sparkles className="h-4 w-4" />
             </div>
-            <div className="bg-muted/50 border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
+            <div className="bg-muted/50 border border-border/40 rounded-2xl rounded-tl-sm px-4 py-3">
               <Loader />
             </div>
           </div>

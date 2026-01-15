@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { PersonaSaveForm } from "./persona-save-form";
 import { copyPersonaAction, deletePersonaAction, type ActionState } from "@/app/actions";
 import { useRouter } from "next/navigation";
+import { PRESET_PERSONAS } from "@/lib/preset-personas";
 
 export function PersonasSection() {
   const { snapshot } = useDashboard();
@@ -68,23 +69,47 @@ export function PersonasSection() {
   return (
     <section>
       <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-xl font-bold">常用  人设</h3>
+        <div className="space-y-1">
+          <h3 className="text-xl font-bold">常用人设</h3>
+          {snapshot.personas.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              👇 没有想法？试试直接使用以下推荐人设进行创作
+            </p>
+          )}
+        </div>
       </div>
-      {snapshot.personas.length === 0 ? (
-        <div className="text-gray-500">暂无人设</div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {snapshot.personas.map((persona) => (
+      
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {/* 用户创建的人设 */}
+        {snapshot.personas.map((persona, index) => (
+          <div
+            key={persona.id || persona.name}
+            className="animate-in fade-in-50 slide-in-from-bottom-4"
+            style={{ animationDelay: `${index * 50}ms`, animationDuration: '400ms' }}
+          >
             <PersonaCard
-              key={persona.id || persona.name}
               persona={persona}
               onEdit={() => handleEdit(persona.id)}
               onCopy={() => handleCopy(persona.id)}
               onDelete={() => setDeletingPersonaId(persona.id || null)}
             />
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+        
+        {/* 预设人设模板（显示在用户创建的人设后面，仅作灵感参考，不入库） */}
+        {PRESET_PERSONAS.map((persona, index) => (
+          <div
+            key={`preset-${index}`}
+            className="animate-in fade-in-50 slide-in-from-bottom-4"
+            style={{ animationDelay: `${(snapshot.personas.length + index) * 50}ms`, animationDuration: '400ms' }}
+          >
+            <PersonaCard
+              persona={persona}
+              isPreset={true}
+            />
+          </div>
+        ))}
+      </div>
 
       {/* 编辑对话框 */}
       <Dialog open={editingPersonaId !== null} onOpenChange={(open) => !open && setEditingPersonaId(null)}>

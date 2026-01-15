@@ -21,12 +21,23 @@ export async function generateAndSavePost(
   const { brief, personaId, projectId, platform } = input;
   const userId = context.user.id;
 
-  // 1. 获取完整的人设信息
-  const persona = await prisma.persona.findFirst({
-    where: { id: personaId, userId },
-  });
-
-  if (!persona) throw new Error("人设不存在或无权访问");
+  // 1. 获取完整的人设信息（支持预设人设）
+  let persona;
+  if (personaId?.startsWith("preset-")) {
+    // 预设人设：从共享常量获取
+    const { getPresetPersonaById, convertPresetPersonaToDbFormat } = await import("@/lib/preset-personas");
+    const presetPersona = getPresetPersonaById(personaId);
+    if (!presetPersona) throw new Error("预设人设不存在");
+    const index = parseInt(personaId.replace("preset-", ""), 10);
+    persona = convertPresetPersonaToDbFormat(presetPersona, index);
+  } else {
+    // 用户创建的人设：从数据库获取
+    const dbPersona = await prisma.persona.findFirst({
+      where: { id: personaId, userId },
+    });
+    if (!dbPersona) throw new Error("人设不存在或无权访问");
+    persona = dbPersona;
+  }
 
   // 2. 获取项目/知识库信息
   let knowledgeBase: string | null = null;
@@ -127,9 +138,13 @@ ${projectName ? `- **关联项目**：${projectName}` : ""}
 
   // 5. 硬编码自动保存到数据库
   try {
+    // 如果是预设人设，personaId 设为 null，但在 metadata 中保存预设人设信息
+    const isPreset = personaId?.startsWith("preset-");
+    const finalPersonaId = isPreset ? null : personaId;
+    
     const post = await prisma.personaPost.create({
       data: {
-        personaId,
+        personaId: finalPersonaId,
         title: result.title,
         content: result.content,
         status: "draft",
@@ -138,6 +153,8 @@ ${projectName ? `- **关联项目**：${projectName}` : ""}
           platform: result.platform || platform || "other",
           projectId: projectId || null,
           generatedBy: "PersonaWriter",
+          // 如果是预设人设，保存预设人设信息
+          ...(isPreset && personaId ? { presetPersonaId: personaId, presetPersonaName: persona.name } : {}),
         },
       },
     });

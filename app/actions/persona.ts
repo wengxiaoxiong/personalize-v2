@@ -624,3 +624,74 @@ export async function deletePersonaAction(
   }
 }
 
+/**
+ * 获取简化的人设列表（用于选择器）
+ * 使用 Server Action 而非 API Route，符合项目规范
+ */
+export async function getPersonasAction(): Promise<ActionState<{
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  domainTags: unknown;
+  createdAt: Date | null;
+}[]>> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return {
+        ok: false,
+        message: "请先登录",
+        data: [],
+      };
+    }
+
+    // 获取用户创建的人设
+    const userPersonas = await prisma.persona.findMany({
+      where: {
+        userId: user.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+        name: true,
+        avatarUrl: true,
+        domainTags: true,
+        createdAt: true,
+      },
+    });
+
+    // 导入预设人设相关函数
+    const { PRESET_PERSONAS, convertPresetPersonaToDbFormat } = await import("@/lib/preset-personas");
+
+    // 将预设人设转换为 API 格式（添加 ID）
+    const presetPersonas = PRESET_PERSONAS.map((persona, index) => {
+      const dbFormat = convertPresetPersonaToDbFormat(persona, index);
+      return {
+        id: dbFormat.id,
+        name: dbFormat.name,
+        avatarUrl: dbFormat.avatarUrl,
+        domainTags: dbFormat.domainTags,
+        createdAt: null as Date | null, // 预设人设没有创建时间
+      };
+    });
+
+    // 合并用户人设和预设人设（用户人设在前，预设人设在后）
+    const allPersonas = [...userPersonas, ...presetPersonas];
+
+    return {
+      ok: true,
+      message: "获取成功",
+      data: allPersonas,
+    };
+  } catch (error) {
+    console.error("Get personas failed:", error);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "获取人设列表失败",
+      data: [],
+    };
+  }
+}
+
