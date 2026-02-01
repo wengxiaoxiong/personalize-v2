@@ -24,6 +24,12 @@ enum PostStatus {
   archived
 }
 
+enum TaskCommentStatus {
+  pending
+  locked
+  completed
+}
+
 model User {
   id                  String           @id @default(uuid()) @db.Uuid
   email               String           @unique
@@ -36,6 +42,7 @@ model User {
   updatedAt           DateTime         @updatedAt @map("updated_at")
   personas            Persona[]
   projects            Project[]
+  taskBatches         TaskBatch[]
   
   @@map("users")
 }
@@ -114,4 +121,58 @@ model PersonaPost {
   persona             Persona     @relation(fields: [personaId], references: [id], onDelete: Cascade)
   
   @@map("persona_posts")
+}
+
+// 任务分发相关模型
+model TaskBatch {
+  id                  String        @id @default(uuid()) @db.Uuid
+  userId              String        @map("user_id") @db.Uuid
+  name                String?       // 任务名称（可选）
+  // metadata 可以存储统计信息等
+  // 例如: { "platformStats": { "小红书": 10, "抖音": 5 }, "qrcodeUrls": {...} }
+  metadata            Json?         @map("metadata")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts               TaskPost[]
+  
+  @@index([userId])
+  @@map("task_batches")
+}
+
+model TaskPost {
+  id                  String        @id @default(uuid()) @db.Uuid
+  batchId             String        @map("batch_id") @db.Uuid
+  platform            String        // 平台名称（小红书/抖音/快手）
+  url                 String        // 帖子链接
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  
+  batch               TaskBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  comments            TaskComment[]
+  
+  @@index([batchId])
+  @@index([platform])
+  @@map("task_posts")
+}
+
+model TaskComment {
+  id                  String            @id @default(uuid()) @db.Uuid
+  postId              String            @map("post_id") @db.Uuid
+  content             String            // 评论内容
+  status              TaskCommentStatus @default(pending)
+  lockedAt            DateTime?         @map("locked_at")
+  lockedBy            String?           @map("locked_by") // sessionId
+  completedAt         DateTime?         @map("completed_at")
+  screenshotUrl       String?           @map("screenshot_url") // 截图 URL（存储路径或完整 URL）
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  
+  post                TaskPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@index([postId])
+  @@index([status])
+  @@index([lockedBy])
+  @@map("task_comments")
 }

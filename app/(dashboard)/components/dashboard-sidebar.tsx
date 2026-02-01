@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Home, PenLine, Sparkles, ChevronLeft, ChevronRight, LogOut, Settings, FolderKanban, History } from "lucide-react";
+import { ArrowLeft, Home, PenLine, Sparkles, ChevronLeft, ChevronRight, LogOut, Settings, FolderKanban, History, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/components/providers/dashboard-provider";
 import {
@@ -37,6 +37,7 @@ const navItems = [
   { href: "/personas", label: "人设库", icon: MaskIcon },
   { href: "/persona-posts", label: "帖子生成", icon: PenLine },
   { href: "/projects", label: "项目管理", icon: FolderKanban },
+  { href: "/task-distribution", label: "任务分发", icon: Share2 },
 ];
 
 export function DashboardSidebar() {

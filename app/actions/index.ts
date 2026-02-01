@@ -7,4 +7,5 @@ export * from "./project";
 export * from "./project-asset";
 export * from "./tos";
 export * from "./knowledge-base";
+export * from "./task-distribution";
 
