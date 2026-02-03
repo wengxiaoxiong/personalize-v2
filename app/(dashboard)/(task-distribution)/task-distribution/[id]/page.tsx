@@ -45,9 +45,9 @@ export default function TaskBatchDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadBatch = async () => {
-      if (!batchId) return;
+    if (!batchId) return;
 
+    const loadBatch = async () => {
       setIsLoading(true);
       try {
         const result = await getTaskBatchById(batchId);
@@ -66,7 +66,7 @@ export default function TaskBatchDetailPage() {
       }
     };
 
-    loadBatch();
+    void loadBatch();
   }, [batchId, router]);
 
   if (isLoading) {

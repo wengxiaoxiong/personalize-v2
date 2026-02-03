@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -467,10 +467,17 @@ function UserTaskLoading() {
 }
 
 export default function UserTaskPage() {
-  return (
-    <Suspense fallback={<UserTaskLoading />}>
-      <UserTaskContent />
-    </Suspense>
-  );
+  // 为避免 SSR 与客户端初始渲染不一致，首次仅渲染统一的 Loading，占位到客户端挂载完成
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  if (!hasMounted) {
+    return <UserTaskLoading />;
+  }
+
+  return <UserTaskContent />;
 }
 

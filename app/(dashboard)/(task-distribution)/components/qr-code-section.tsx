@@ -37,7 +37,8 @@ export function QRCodeSection({ batchId, platforms }: QRCodeSectionProps) {
     }
   };
 
-  const handleDownload = (qrImageUrl: string, platform: string) => {
+  const handleDownload = (qrImageUrl: string | undefined, platform: string) => {
+    if (!qrImageUrl) return;
     const link = document.createElement("a");
     link.href = qrImageUrl;
     link.download = `${batchId.slice(0, 8)}-${platform}.png`;
@@ -89,6 +90,7 @@ export function QRCodeSection({ batchId, platforms }: QRCodeSectionProps) {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!qr.qrImageUrl}
                     onClick={() => handleDownload(qr.qrImageUrl, qr.platform)}
                   >
                     <Download className="h-4 w-4 mr-1" />

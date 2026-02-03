@@ -16,6 +16,7 @@ export interface TaskBatch {
   _count: {
     posts: number;
     comments: number;
+    completed: number;
   };
 }
 
@@ -110,7 +111,8 @@ export function TaskBatchSection() {
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>创建于 {new Date(batch.createdAt).toLocaleString("zh-CN")}</p>
                     <p>
-                      帖子: {batch._count.posts} | 评论: {batch._count.comments} | 平台: {platformNames}
+                      帖子: {batch._count.posts} | 评论: {batch._count.comments}（已完成{" "}
+                      {batch._count.completed}） | 平台: {platformNames}
                     </p>
                   </div>
                 </div>

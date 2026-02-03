@@ -398,7 +398,7 @@ export async function getTaskBatches(): Promise<
       name: string | null;
       createdAt: Date;
       metadata: Record<string, unknown> | null;
-      _count: { posts: number; comments: number };
+      _count: { posts: number; comments: number; completed: number };
     }>;
   }
 > {
@@ -428,16 +428,26 @@ export async function getTaskBatches(): Promise<
       },
     });
 
-    // 获取每个批次的评论数量
+    // 获取每个批次的评论数量及完成数量
     const batchesWithCounts = await Promise.all(
       batches.map(async (batch) => {
-        const commentCount = await prisma.taskComment.count({
-          where: {
-            post: {
-              batchId: batch.id,
+        const [totalComments, completedComments] = await Promise.all([
+          prisma.taskComment.count({
+            where: {
+              post: {
+                batchId: batch.id,
+              },
             },
-          },
-        });
+          }),
+          prisma.taskComment.count({
+            where: {
+              status: "completed",
+              post: {
+                batchId: batch.id,
+              },
+            },
+          }),
+        ]);
 
         return {
           id: batch.id,
@@ -446,7 +456,8 @@ export async function getTaskBatches(): Promise<
           metadata: batch.metadata as Record<string, unknown> | null,
           _count: {
             posts: batch._count.posts,
-            comments: commentCount,
+            comments: totalComments,
+            completed: completedComments,
           },
         };
       })

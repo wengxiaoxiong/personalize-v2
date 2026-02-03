@@ -138,13 +138,13 @@ ${projectName ? `- **关联项目**：${projectName}` : ""}
 
   // 5. 硬编码自动保存到数据库
   try {
-    // 如果是预设人设，personaId 设为 null，但在 metadata 中保存预设人设信息
+    // 是否为预设人设（仅影响 metadata 记录，不影响 personaId 字段本身）
     const isPreset = personaId?.startsWith("preset-");
-    const finalPersonaId = isPreset ? null : personaId;
     
     const post = await prisma.personaPost.create({
       data: {
-        personaId: finalPersonaId,
+        // 数据库层始终写入 personaId，保持外键完整性
+        personaId,
         title: result.title,
         content: result.content,
         status: "draft",
@@ -153,7 +153,7 @@ ${projectName ? `- **关联项目**：${projectName}` : ""}
           platform: result.platform || platform || "other",
           projectId: projectId || null,
           generatedBy: "PersonaWriter",
-          // 如果是预设人设，保存预设人设信息
+          // 如果是预设人设，额外在 metadata 中记录预设人设信息
           ...(isPreset && personaId ? { presetPersonaId: personaId, presetPersonaName: persona.name } : {}),
         },
       },
